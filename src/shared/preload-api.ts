@@ -1,6 +1,6 @@
 export type NetXScanApi = {
-  // Module 1: no privileged methods.
-  // Module 2: add ping / getAppVersion here.
+  ping: () => Promise<string>;
+  getAppVersion: () => Promise<string>;
 };
 
 declare global {

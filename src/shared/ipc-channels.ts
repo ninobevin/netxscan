@@ -1,10 +1,10 @@
 /**
  * Named IPC channel allowlist.
- * Module 1: no ipcMain handlers yet.
- * Module 2: add the first non-privileged invoke test here.
+ * Only these strings may be used with ipcRenderer.invoke / ipcMain.handle.
  */
 export const ipcChannels = {
-  // Example (Module 2): appGetVersion: 'app:get-version',
+  ping: 'app:ping',
+  getAppVersion: 'app:get-version',
 } as const;
 
 export type IpcChannel = (typeof ipcChannels)[keyof typeof ipcChannels];
