@@ -71,6 +71,42 @@
       "cvss": 7.5,
       "published": "2023-10-10",
       "products": ["http2"]
+    },
+    {
+      "id": "CVE-2014-3566",
+      "title": "SSL 3.0 POODLE",
+      "description": "SSL 3.0 padding oracle on downgraded sessions. Catalog entry only; NetXScan does not exploit this.",
+      "severity": "medium",
+      "cvss": 3.4,
+      "published": "2014-10-14",
+      "products": ["tls"]
+    },
+    {
+      "id": "CVE-2016-2183",
+      "title": "SWEET32 birthday attack",
+      "description": "64-bit block ciphers such as 3DES in TLS can leak data. Catalog entry only.",
+      "severity": "medium",
+      "cvss": 7.5,
+      "published": "2016-08-31",
+      "products": ["tls"]
+    },
+    {
+      "id": "CVE-2015-0204",
+      "title": "OpenSSL FREAK",
+      "description": "Export-grade RSA in TLS. Catalog entry only.",
+      "severity": "medium",
+      "cvss": 4.3,
+      "published": "2015-03-08",
+      "products": ["tls"]
+    },
+    {
+      "id": "CVE-2016-2118",
+      "title": "SMB signing downgrade (Badlock)",
+      "description": "SMB can be forced to omit message signing. Catalog entry only.",
+      "severity": "high",
+      "cvss": 7.5,
+      "published": "2016-04-12",
+      "products": ["smbsign"]
     }
   ]
 }

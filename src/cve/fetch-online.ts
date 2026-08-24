@@ -2,10 +2,48 @@ import type { ParsedCve } from './parse-cve';
 
 const ONLINE_CVE_IDS = [
   'CVE-2014-0160',
+  'CVE-2014-3566',
+  'CVE-2015-0204',
+  'CVE-2016-2118',
+  'CVE-2016-2183',
   'CVE-2017-0144',
+  'CVE-2017-0145',
+  'CVE-2021-26855',
   'CVE-2021-34527',
   'CVE-2021-44228',
+  'CVE-2022-22965',
+  'CVE-2023-44487',
 ] as const;
+
+const CURATED_PRODUCTS: Record<string, string[]> = {
+  'CVE-2014-0160': ['openssl'],
+  'CVE-2014-3566': ['tls'],
+  'CVE-2015-0204': ['tls'],
+  'CVE-2016-2118': ['smbsign'],
+  'CVE-2016-2183': ['tls'],
+  'CVE-2017-0144': ['windows', 'smb'],
+  'CVE-2017-0145': ['windows', 'smb'],
+  'CVE-2021-26855': ['exchange'],
+  'CVE-2021-34527': ['windows', 'print'],
+  'CVE-2021-44228': ['log4j', 'java'],
+  'CVE-2022-22965': ['spring', 'java'],
+  'CVE-2023-44487': ['http2'],
+};
+
+export function applyCuratedProducts<T extends { id: string; products: string[] }>(
+  cves: T[],
+): T[] {
+  return cves.map((cve) => {
+    const extra = CURATED_PRODUCTS[cve.id] ?? [];
+    const products = [...cve.products];
+    for (const token of extra) {
+      if (!products.includes(token)) {
+        products.push(token);
+      }
+    }
+    return { ...cve, products };
+  });
+}
 
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -44,7 +82,8 @@ async function fetchOne(id: string): Promise<ParsedCve | null> {
     }
 
     const body = (await response.json()) as unknown;
-    return fromMitre(id, body);
+    const parsed = fromMitre(id, body);
+    return parsed ? applyCuratedProducts([parsed])[0] : null;
   } catch {
     return null;
   } finally {

@@ -189,4 +189,73 @@ describe('correlation engine', () => {
     );
     assert.deepEqual(http2, []);
   });
+
+  it('matches TLS catalog entries from legacy versions or weak ciphers, not an open 443 port', () => {
+    const openOnly = correlateAssets(
+      [cve('CVE-2014-3566', ['tls'])],
+      [
+        asset({
+          tls: {
+            portOpen: true,
+            tlsVersions: ['TLSv1.2'],
+            ciphers: ['TLS_AES_128_GCM_SHA256'],
+            certificateSubject: 'CN=clinic.local',
+            certificateIssuer: 'CN=CA',
+            certificateExpires: null,
+          },
+        }),
+      ],
+    );
+    assert.deepEqual(openOnly, []);
+
+    const legacy = correlateAssets(
+      [cve('CVE-2014-3566', ['tls'])],
+      [
+        asset({
+          tls: {
+            portOpen: true,
+            tlsVersions: ['TLSv1.0', 'TLSv1.2'],
+            ciphers: [],
+            certificateSubject: 'CN=clinic.local',
+            certificateIssuer: 'CN=CA',
+            certificateExpires: null,
+          },
+        }),
+      ],
+    );
+    assert.equal(legacy.length, 1);
+    assert.match(legacy[0]?.evidence ?? '', /TLSv1\.0/);
+  });
+
+  it('matches SMB signing CVEs only when signing is not required', () => {
+    const required = correlateAssets(
+      [cve('CVE-2016-2118', ['smbsign'])],
+      [
+        asset({
+          smb: {
+            portOpen: true,
+            dialects: ['3.1.1'],
+            smbv1Advertised: false,
+            signingRequired: true,
+          },
+        }),
+      ],
+    );
+    assert.deepEqual(required, []);
+
+    const optional = correlateAssets(
+      [cve('CVE-2016-2118', ['smbsign'])],
+      [
+        asset({
+          smb: {
+            portOpen: true,
+            dialects: ['3.1.1'],
+            smbv1Advertised: false,
+            signingRequired: false,
+          },
+        }),
+      ],
+    );
+    assert.equal(optional.length, 1);
+  });
 });

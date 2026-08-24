@@ -28,6 +28,9 @@ export type EngineMatch = {
 const HANDLED = new Set([
   'openssl',
   'smb',
+  'smbsign',
+  'tls',
+  'ssl',
   'print',
   'log4j',
   'exchange',
@@ -36,6 +39,9 @@ const HANDLED = new Set([
   'java',
   'http2',
 ]);
+
+const OLD_TLS = /SSLv2|SSLv3|TLSv1(\.0)?$|TLSv1\.1/i;
+const WEAK_CIPHER = /NULL|EXPORT|DES|RC4|MD5|ANON/i;
 
 const RECOMMENDATION =
   'Review the listed evidence and apply the vendor patch if that component is still in use. An open port or service name alone is not treated as a CVE. NetXScan does not exploit the issue.';
@@ -80,6 +86,14 @@ function evidenceFor(cve: CveRecord, asset: FactBundle): string[] {
 
   if (products.has('smb')) {
     lines.push(...smbEvidence(asset));
+  }
+
+  if (products.has('smbsign')) {
+    lines.push(...smbSigningEvidence(asset));
+  }
+
+  if (products.has('tls') || products.has('ssl')) {
+    lines.push(...tlsProtocolEvidence(asset));
   }
 
   if (products.has('print')) {
@@ -150,6 +164,40 @@ function smbEvidence(asset: FactBundle): string[] {
   return [
     `SMBv1 is advertised (${dialects}). Port 445 being open was not used as the reason.`,
   ];
+}
+
+function smbSigningEvidence(asset: FactBundle): string[] {
+  if (asset.smb?.signingRequired !== false) {
+    return [];
+  }
+
+  return [
+    'SMB message signing is disabled or not required. Port 445 being open was not used as the reason.',
+  ];
+}
+
+function tlsProtocolEvidence(asset: FactBundle): string[] {
+  if (!asset.tls) {
+    return [];
+  }
+
+  const oldTls = asset.tls.tlsVersions.filter((item) => OLD_TLS.test(item));
+  const weakCiphers = asset.tls.ciphers.filter((item) => WEAK_CIPHER.test(item));
+  const lines: string[] = [];
+
+  if (oldTls.length > 0) {
+    lines.push(
+      `Assessment advertised legacy SSL/TLS: ${oldTls.join(', ')}. An open 443 port alone was not used.`,
+    );
+  }
+
+  if (weakCiphers.length > 0) {
+    lines.push(
+      `Assessment listed weak TLS ciphers: ${weakCiphers.slice(0, 6).join(', ')}.`,
+    );
+  }
+
+  return lines;
 }
 
 function softwareEvidence(

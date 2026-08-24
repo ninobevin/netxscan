@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import dataset from '../src/cve/test-dataset.json';
+import { applyCuratedProducts } from '../src/cve/fetch-online';
 import {
   parseCveDocument,
   parseCveSearch,
@@ -18,6 +19,8 @@ describe('CVE catalog parsing', () => {
     assert.ok(parsed.cves.length > 0);
     const ids = parsed.cves.map((item) => item.id);
     assert.ok(ids.includes('CVE-2021-44228'));
+    assert.ok(ids.includes('CVE-2014-3566'));
+    assert.ok(ids.includes('CVE-2016-2118'));
   });
 
   it('rejects empty, oversized, or malformed catalogs', () => {
@@ -62,5 +65,12 @@ describe('CVE catalog parsing', () => {
 
     const stamped = withSource(parsed.cves, 'test', '2026-01-01T00:00:00.000Z');
     assert.equal(stamped[0]?.source, 'test');
+    const merged = applyCuratedProducts([
+      {
+        id: 'CVE-2017-0144',
+        products: [] as string[],
+      },
+    ]);
+    assert.ok(merged[0]?.products.includes('smb'));
   });
 });

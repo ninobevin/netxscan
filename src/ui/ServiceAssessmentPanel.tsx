@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type {
+  AssessmentCorrelation,
   AssessmentIssue,
   ServiceAssessment,
 } from '../shared/assessment-types';
@@ -83,11 +84,15 @@ export function ServiceAssessmentPanel({
   onClose,
 }: ServiceAssessmentPanelProps) {
   const [assessment, setAssessment] = useState<ServiceAssessment | null>(null);
+  const [correlation, setCorrelation] = useState<AssessmentCorrelation | null>(
+    null,
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setAssessment(null);
+    setCorrelation(null);
     setMessage(null);
     void window.netxscan.getLatestAssessment(assetId).then((result) => {
       if (result.ok) {
@@ -113,12 +118,21 @@ export function ServiceAssessmentPanel({
     }
 
     setAssessment(result.assessment);
+    setCorrelation(result.correlation ?? null);
     const count = result.assessment.issues.length;
-    setMessage(
-      count
-        ? `Assessment saved. ${count} issue(s) were written to Findings so they can be tracked to resolved.`
-        : 'Assessment saved. No misconfiguration issues were raised.',
-    );
+    const cveCount = result.correlation?.matches.length ?? 0;
+    const catalog = result.correlation
+      ? result.correlation.catalogSource === 'online'
+        ? `CVE catalog downloaded (${result.correlation.catalogImported} record(s)).`
+        : `Online catalog was unavailable; correlated against the local catalog (${result.correlation.catalogImported} record(s)).`
+      : '';
+    const issuesText = count
+      ? `${count} misconfiguration issue(s) were written to Findings.`
+      : 'No misconfiguration issues were raised.';
+    const cveText = cveCount
+      ? `${cveCount} catalog CVE match(es) from this assessment were written to Findings.`
+      : 'No catalog CVEs matched this assessment’s TLS, SMB, or software facts.';
+    setMessage(`Assessment saved. ${issuesText} ${catalog} ${cveText}`);
   };
 
   return (
@@ -134,16 +148,19 @@ export function ServiceAssessmentPanel({
       <p className="text-sm text-health-subtle">
         Fixed Nmap check of common clinic ports (FTP, Telnet, mail, HTTP,
         LDAP, SMB, SQL, RDP, VNC, WinRM HTTP, Redis, MongoDB, printers) plus
-        TLS ciphers, certificate expiry, and SMB dialects/signing. Badges use
+        TLS ciphers, certificate expiry, and SMB dialects/signing. Then it
+        downloads the CVE catalog (or uses the local catalog if the network
+        is down) and correlates those facts plus inventory services and any
+        Windows software already collected for this asset. Badges use
         NIST-style colors and qualitative ratings with a 0–10 risk score.
-        These are configuration facts, not exploits. Open issues are copied
-        to Findings so they can be tracked to resolved.
+        These are configuration facts, not exploits. Open issues and CVE
+        matches are copied to Findings.
       </p>
       {canAssess ? (
         <BusyButton
           className="app-btn-primary w-fit"
           busy={busy}
-          busyLabel="Assessing…"
+          busyLabel="Assessing and correlating…"
           onClick={() => {
             void onRun();
           }}
@@ -194,6 +211,41 @@ export function ServiceAssessmentPanel({
               ))}
             </ul>
           )}
+          {correlation ? (
+            <div>
+              <h3 className="font-medium">CVE catalog correlation</h3>
+              <p className="text-health-subtle">
+                {correlation.catalogSource === 'online'
+                  ? `Downloaded ${correlation.catalogImported} catalog record(s) from the internet.`
+                  : `Used ${correlation.catalogImported} local catalog record(s).`}
+              </p>
+              {correlation.matches.length === 0 ? (
+                <p>
+                  No catalog CVEs matched this host’s TLS, SMB, service, or
+                  Windows software facts.
+                </p>
+              ) : (
+                <ul className="mt-2 grid gap-2">
+                  {correlation.matches.map((match) => (
+                    <li
+                      key={match.cveId}
+                      className="rounded-xl border border-health-border p-3"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${nistClass(match.severity)}`}
+                        >
+                          {nistLabel(match.severity)}
+                        </span>
+                        <span className="font-medium">{match.title}</span>
+                        <span className="text-health-subtle">{match.cveId}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <h3 className="font-medium">HTTPS / TLS (443)</h3>
