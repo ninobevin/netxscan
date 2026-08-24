@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import { ipv4ToInt } from '../nmap/authorize';
+import { winRmComputerName } from '../nmap/hostnames';
 import {
   WINDOWS_COLLECT_SCRIPT,
   WINDOWS_UNINSTALL_SCRIPT,
@@ -15,6 +16,18 @@ const POWERSHELL =
   process.env.SystemRoot
     ? `${process.env.SystemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
     : 'powershell.exe';
+
+const PS_VALIDATE_COMPUTER = `
+if (
+  $ComputerName -notmatch '^(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$' -and
+  -not (
+    $ComputerName -match '^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$' -and
+    $ComputerName -notmatch '\\.\\.'
+  )
+) {
+  throw 'invalid_host'
+}
+`.trim();
 
 export function localIPv4Addresses(): string[] {
   const nets = os.networkInterfaces();
@@ -43,10 +56,13 @@ export function runLocalWindowsCollect(): Promise<unknown> {
 export function runRemoteWindowsCollect(
   ipAddress: string,
   credential?: { username: string; password: string },
+  hostname?: string | null,
 ): Promise<unknown> {
   if (ipv4ToInt(ipAddress) === null) {
     return Promise.reject(new Error('invalid_input'));
   }
+
+  const computerName = winRmComputerName(hostname, ipAddress);
 
   if (WINDOWS_COLLECT_SCRIPT.includes("'@")) {
     return Promise.reject(new Error('powershell_failed'));
@@ -56,9 +72,7 @@ export function runRemoteWindowsCollect(
     const wrapper = `
 $ErrorActionPreference = 'Stop'
 $ComputerName = [string]$args[0]
-if ($ComputerName -notmatch '^(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$') {
-  throw 'invalid_host'
-}
+${PS_VALIDATE_COMPUTER}
 $inner = @'
 ${WINDOWS_COLLECT_SCRIPT}
 '@
@@ -72,7 +86,7 @@ if ($json -is [string]) {
 
     return runPowerShellEncoded(
       wrapper,
-      [ipAddress],
+      [computerName],
       REMOTE_TIMEOUT_MS,
       'winrm_failed',
     );
@@ -82,9 +96,7 @@ if ($json -is [string]) {
 $ErrorActionPreference = 'Stop'
 $ComputerName = [string]$args[0]
 $User = [string]$args[1]
-if ($ComputerName -notmatch '^(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$') {
-  throw 'invalid_host'
-}
+${PS_VALIDATE_COMPUTER}
 $Password = [Console]::In.ReadToEnd()
 $secure = ConvertTo-SecureString -String $Password -AsPlainText -Force
 $cred = New-Object System.Management.Automation.PSCredential ($User, $secure)
@@ -101,7 +113,7 @@ if ($json -is [string]) {
 
   return runPowerShellEncoded(
     wrapper,
-    [ipAddress, credential.username],
+    [computerName, credential.username],
     REMOTE_TIMEOUT_MS,
     'winrm_failed',
     true,
@@ -113,12 +125,15 @@ export function runRemoteWindowsUninstall(
   ipAddress: string,
   uninstallKey: string,
   credential?: { username: string; password: string },
+  hostname?: string | null,
 ): Promise<unknown> {
   const key = parseUninstallKey(uninstallKey);
 
   if (ipv4ToInt(ipAddress) === null || !key) {
     return Promise.reject(new Error('invalid_input'));
   }
+
+  const computerName = winRmComputerName(hostname, ipAddress);
 
   if (
     WINDOWS_UNINSTALL_SCRIPT.includes("'@") ||
@@ -132,9 +147,7 @@ export function runRemoteWindowsUninstall(
 $ErrorActionPreference = 'Stop'
 $ComputerName = [string]$args[0]
 $Key = [string]$args[1]
-if ($ComputerName -notmatch '^(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$') {
-  throw 'invalid_host'
-}
+${PS_VALIDATE_COMPUTER}
 if ($Key -notmatch '^[A-Za-z0-9._\\-{}]{1,128}$') {
   throw 'invalid_key'
 }
@@ -151,7 +164,7 @@ if ($json -is [string]) {
 
     return runPowerShellEncoded(
       wrapper,
-      [ipAddress, key],
+      [computerName, key],
       UNINSTALL_TIMEOUT_MS,
       'winrm_failed',
     );
@@ -162,9 +175,7 @@ $ErrorActionPreference = 'Stop'
 $ComputerName = [string]$args[0]
 $Key = [string]$args[1]
 $User = [string]$args[2]
-if ($ComputerName -notmatch '^(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$') {
-  throw 'invalid_host'
-}
+${PS_VALIDATE_COMPUTER}
 if ($Key -notmatch '^[A-Za-z0-9._\\-{}]{1,128}$') {
   throw 'invalid_key'
 }
@@ -184,7 +195,7 @@ if ($json -is [string]) {
 
   return runPowerShellEncoded(
     wrapper,
-    [ipAddress, key, credential.username],
+    [computerName, key, credential.username],
     UNINSTALL_TIMEOUT_MS,
     'winrm_failed',
     true,

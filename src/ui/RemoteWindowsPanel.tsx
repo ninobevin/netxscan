@@ -118,10 +118,11 @@ export function RemoteWindowsPanel({
     <section className="app-card">
       <h2 className="text-lg font-semibold">Remote host (WinRM)</h2>
       <p className="text-sm text-health-subtle">
-        Uses the same fixed script over WinRM against an inventory IPv4 address
-        inside authorized ranges. Leave credential empty to use the Windows
-        account that started this app, or pick a Credential Manager entry.
-        Passwords never go to MySQL.
+        Uses the same fixed script over WinRM. If inventory has a DNS hostname
+        (not just an IP), remoting uses that name so Kerberos can work; otherwise
+        it uses the IPv4 address. The IP must still be inside authorized ranges.
+        Leave credential empty to use the Windows account that started this app,
+        or pick a Credential Manager entry. Passwords never go to MySQL.
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="grid min-w-64 flex-1 gap-1 text-sm">

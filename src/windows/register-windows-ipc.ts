@@ -159,10 +159,12 @@ export function registerWindowsIpc(): void {
       }
 
       let ipAddress: string | null = null;
+      let hostname: string | null = null;
 
       try {
         const asset = await getAssetById(assetId);
         ipAddress = asset?.ipAddress ?? null;
+        hostname = asset?.hostname ?? null;
 
         if (!asset) {
           return { ok: false, error: 'not_found' };
@@ -198,14 +200,23 @@ export function registerWindowsIpc(): void {
       }
 
       try {
-        const raw = await runRemoteWindowsCollect(ipAddress, secret.credential);
+        const raw = await runRemoteWindowsCollect(
+          ipAddress,
+          secret.credential,
+          hostname,
+        );
         const facts = parseWindowsFacts(raw, [ipAddress]);
         const assessment = await saveWindowsAssessment(
           assetId,
           facts,
           REMOTE_NOTES,
         );
-        await writeAudit('windows_remote', ipAddress);
+        await writeAudit(
+          'windows_remote',
+          hostname && hostname !== ipAddress
+            ? `${hostname} (${ipAddress})`
+            : ipAddress,
+        );
         return { ok: true, assessment };
       } catch (error) {
         if (error instanceof Error && error.message === 'timeout') {
@@ -304,10 +315,12 @@ export function registerWindowsIpc(): void {
       }
 
       let ipAddress: string | null = null;
+      let hostname: string | null = null;
 
       try {
         const asset = await getAssetById(assetId);
         ipAddress = asset?.ipAddress ?? null;
+        hostname = asset?.hostname ?? null;
 
         if (!asset) {
           return { ok: false, error: 'not_found' };
@@ -339,8 +352,13 @@ export function registerWindowsIpc(): void {
           ipAddress,
           uninstallKey,
           secret.credential,
+          hostname,
         );
-        const raw = await runRemoteWindowsCollect(ipAddress, secret.credential);
+        const raw = await runRemoteWindowsCollect(
+          ipAddress,
+          secret.credential,
+          hostname,
+        );
         const facts = parseWindowsFacts(raw, [ipAddress]);
         const assessment = await saveWindowsAssessment(
           assetId,

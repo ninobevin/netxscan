@@ -3,6 +3,7 @@ import { getDb } from '../db/client';
 import type { Asset, AssetInput, AssetService } from '../shared/asset-types';
 import type { AssetType } from '../shared/asset-types';
 import type { NmapHost } from '../shared/scan-types';
+import { parseDnsHostname } from '../nmap/hostnames';
 
 type AssetRow = {
   id: string;
@@ -205,10 +206,14 @@ const MAC =
   /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
 
 function discoveryHostname(host: NmapHost, fallback: string): string {
-  const name = host.hostname?.trim() ?? '';
+  const resolved = parseDnsHostname(host.hostname);
+  if (resolved) {
+    return resolved.slice(0, 128);
+  }
 
-  if (name.length > 0 && name.length <= 128) {
-    return name;
+  const previous = parseDnsHostname(fallback);
+  if (previous) {
+    return previous.slice(0, 128);
   }
 
   return fallback;

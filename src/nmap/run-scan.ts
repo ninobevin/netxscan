@@ -3,15 +3,17 @@ import { access, readFile, unlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { NmapHost } from '../shared/scan-types';
+import { enrichHostsWithDns } from './hostnames';
 import { parseNmapXml } from './parse-xml';
 
 const PING_TIMEOUT_MS = 120_000;
 const DISCOVERY_TIMEOUT_MS = 900_000;
 
-const PING_ARGS = ['-sn', '-T3', '--max-retries', '1'] as const;
+const PING_ARGS = ['-sn', '-R', '-T3', '--max-retries', '1'] as const;
 const DISCOVERY_ARGS = [
   '-sT',
   '-sV',
+  '-R',
   '--version-intensity',
   '2',
   '-T3',
@@ -88,7 +90,7 @@ async function runNmap(
   timeoutMs: number,
 ): Promise<NmapHost[]> {
   const xml = await runNmapXml(nmapPath, profileArgs, target, timeoutMs);
-  return parseNmapXml(xml);
+  return enrichHostsWithDns(parseNmapXml(xml));
 }
 
 async function runNmapXml(
