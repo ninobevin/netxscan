@@ -88,5 +88,18 @@ typings/
 # Vite
 .vite/
 
+# Compiled unit tests
+.test-out/
+
 # Electron-Forge
 out/
+
+# Local MySQL / SQLite settings (copy from config/database.example.json)
+config/database.json
+
+# Local SQLite data files
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+

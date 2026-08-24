@@ -2,7 +2,7 @@
   "name": "netxscan",
   "productName": "NetXScan",
   "version": "1.0.0",
-  "description": "Authorized network asset inventory and assessment desktop application",
+  "description": "NetXScan — dental clinic network-based IT asset inventory and vulnerability management system",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -11,7 +11,8 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p test/tsconfig.json && node test/run-tests.cjs"
   },
   "keywords": [],
   "author": {
@@ -29,6 +30,7 @@
     "@electron-forge/plugin-fuses": "^7.11.2",
     "@electron-forge/plugin-vite": "^7.11.2",
     "@electron/fuses": "^1.8.0",
+    "@types/bcryptjs": "^2.4.6",
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
@@ -45,7 +47,9 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "electron-squirrel-startup": "^1.0.1",
+    "mysql2": "^3.23.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }

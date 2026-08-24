@@ -1,0 +1,76 @@
+{
+  "cves": [
+    {
+      "id": "CVE-2014-0160",
+      "title": "OpenSSL Heartbleed",
+      "description": "OpenSSL TLS heartbeat extension can disclose memory. Catalog entry only; NetXScan does not exploit this.",
+      "severity": "high",
+      "cvss": 7.5,
+      "published": "2014-04-07",
+      "products": ["openssl"]
+    },
+    {
+      "id": "CVE-2017-0144",
+      "title": "Windows SMBv1 (EternalBlue)",
+      "description": "Windows SMBv1 remote code execution. Catalog entry only; NetXScan does not exploit this.",
+      "severity": "critical",
+      "cvss": 9.8,
+      "published": "2017-03-14",
+      "products": ["windows", "smb"]
+    },
+    {
+      "id": "CVE-2017-0145",
+      "title": "Windows SMBv1 related",
+      "description": "Windows SMBv1 information disclosure. Catalog entry only.",
+      "severity": "high",
+      "cvss": 7.5,
+      "published": "2017-03-14",
+      "products": ["windows", "smb"]
+    },
+    {
+      "id": "CVE-2021-34527",
+      "title": "Windows Print Spooler (PrintNightmare)",
+      "description": "Windows Print Spooler privilege escalation. Catalog entry only.",
+      "severity": "critical",
+      "cvss": 8.8,
+      "published": "2021-07-02",
+      "products": ["windows", "print"]
+    },
+    {
+      "id": "CVE-2021-44228",
+      "title": "Apache Log4j (Log4Shell)",
+      "description": "Log4j JNDI lookup remote code execution. Catalog entry only; NetXScan does not exploit this.",
+      "severity": "critical",
+      "cvss": 10.0,
+      "published": "2021-12-10",
+      "products": ["log4j", "java"]
+    },
+    {
+      "id": "CVE-2021-26855",
+      "title": "Microsoft Exchange (ProxyLogon)",
+      "description": "Exchange Server server-side request forgery. Catalog entry only.",
+      "severity": "critical",
+      "cvss": 9.8,
+      "published": "2021-03-02",
+      "products": ["exchange"]
+    },
+    {
+      "id": "CVE-2022-22965",
+      "title": "Spring Framework (Spring4Shell)",
+      "description": "Spring MVC class loader manipulation. Catalog entry only.",
+      "severity": "critical",
+      "cvss": 9.8,
+      "published": "2022-04-01",
+      "products": ["spring", "java"]
+    },
+    {
+      "id": "CVE-2023-44487",
+      "title": "HTTP/2 Rapid Reset",
+      "description": "HTTP/2 stream cancellation can overwhelm servers. Catalog entry only.",
+      "severity": "high",
+      "cvss": 7.5,
+      "published": "2023-10-10",
+      "products": ["http2"]
+    }
+  ]
+}

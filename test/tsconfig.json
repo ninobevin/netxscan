@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "../.test-out",
+    "rootDir": ".."
+  },
+  "include": ["./**/*.ts", "../src/**/*.ts", "../forge.env.d.ts"],
+  "exclude": ["../src/ui/**", "../src/renderer.tsx"]
+}
