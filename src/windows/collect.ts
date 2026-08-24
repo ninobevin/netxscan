@@ -29,6 +29,43 @@ if (
 }
 `.trim();
 
+function quoteArg(value: string): string {
+  if (/^[A-Za-z0-9._\\@\-]+$/.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+function logWinRmCommand(
+  script: string,
+  extraArgs: string[],
+  passwordOnStdin: boolean,
+): void {
+  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+  const tail = extraArgs.map(quoteArg).join(' ');
+  const computerName = extraArgs[0] ?? '';
+  console.log('[NetXScan] Remote Windows collect — PowerShell command:');
+  console.log(
+    `${POWERSHELL} -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}${
+      tail ? ` ${tail}` : ''
+    }`,
+  );
+  if (passwordOnStdin) {
+    const user = extraArgs[1] ?? '';
+    console.log(
+      `[NetXScan] Equivalent: Invoke-Command -ComputerName ${quoteArg(computerName)} -Credential (PSCredential for ${quoteArg(user)}) -Authentication Negotiate -ScriptBlock { <fixed collect script> }`,
+    );
+    console.log(
+      '[NetXScan] The credential password is written to PowerShell stdin and is not printed.',
+    );
+  } else {
+    console.log(
+      `[NetXScan] Equivalent: Invoke-Command -ComputerName ${quoteArg(computerName)} -ScriptBlock { <fixed collect script> }`,
+    );
+  }
+}
+
 export function localIPv4Addresses(): string[] {
   const nets = os.networkInterfaces();
   const addresses: string[] = [];
@@ -84,6 +121,7 @@ if ($json -is [string]) {
 }
 `.trim();
 
+    logWinRmCommand(wrapper, [computerName], false);
     return runPowerShellEncoded(
       wrapper,
       [computerName],
@@ -111,6 +149,7 @@ if ($json -is [string]) {
 }
 `.trim();
 
+  logWinRmCommand(wrapper, [computerName, credential.username], true);
   return runPowerShellEncoded(
     wrapper,
     [computerName, credential.username],

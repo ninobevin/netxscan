@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { Asset } from '../shared/asset-types';
-import type { StoredCredential } from '../shared/credential-types';
 import type { WindowsAssessment } from '../shared/windows-types';
 import { BusyButton } from './BusyButton';
 import { WindowsFactsView } from './WindowsFactsView';
@@ -15,11 +14,7 @@ function errorText(error: string): string {
   }
 
   if (error === 'winrm_failed') {
-    return 'WinRM did not return facts. Check remoting, the selected credential, and authorized ranges.';
-  }
-
-  if (error === 'credential_missing') {
-    return 'The selected credential is not in Windows Credential Manager.';
+    return 'WinRM did not return facts. Check remoting, DNS hostname, and that this PC is signed in as a domain account that can administer the target.';
   }
 
   if (error === 'timeout') {
@@ -47,9 +42,7 @@ export function RemoteWindowsPanel({
   refreshKey,
 }: RemoteWindowsPanelProps) {
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [credentials, setCredentials] = useState<StoredCredential[]>([]);
   const [assetId, setAssetId] = useState('');
-  const [credentialId, setCredentialId] = useState('');
   const [assessment, setAssessment] = useState<WindowsAssessment | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -63,18 +56,6 @@ export function RemoteWindowsPanel({
       }
     });
   }, [refreshKey]);
-
-  useEffect(() => {
-    if (!canRun) {
-      return;
-    }
-
-    void window.netxscan.listCredentials().then((result) => {
-      if (result.ok) {
-        setCredentials(result.credentials);
-      }
-    });
-  }, [canRun, refreshKey]);
 
   useEffect(() => {
     if (!assetId) {
@@ -100,10 +81,7 @@ export function RemoteWindowsPanel({
 
     setBusy(true);
     setMessage(null);
-    const result = await window.netxscan.runRemoteWindowsAssessment(
-      assetId,
-      credentialId || undefined,
-    );
+    const result = await window.netxscan.runRemoteWindowsAssessment(assetId);
     setBusy(false);
 
     if (!result.ok) {
@@ -118,11 +96,10 @@ export function RemoteWindowsPanel({
     <section className="app-card">
       <h2 className="text-lg font-semibold">Remote host (WinRM)</h2>
       <p className="text-sm text-health-subtle">
-        Uses the same fixed script over WinRM. If inventory has a DNS hostname
-        (not just an IP), remoting uses that name so Kerberos can work; otherwise
+        Uses the same fixed script over WinRM as the Windows account that
+        launched this app (your domain user). No Credential Manager password is
+        sent. If inventory has a DNS hostname, remoting uses that name; otherwise
         it uses the IPv4 address. The IP must still be inside authorized ranges.
-        Leave credential empty to use the Windows account that started this app,
-        or pick a Credential Manager entry. Passwords never go to MySQL.
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="grid min-w-64 flex-1 gap-1 text-sm">
@@ -139,21 +116,6 @@ export function RemoteWindowsPanel({
             {hosts.map((asset) => (
               <option key={asset.id} value={asset.id}>
                 {asset.hostname} ({asset.ipAddress})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid min-w-64 flex-1 gap-1 text-sm">
-          <span className="font-medium text-health-subtle">Credential</span>
-          <select
-            value={credentialId}
-            disabled={!canRun || busy}
-            onChange={(event) => setCredentialId(event.target.value)}
-          >
-            <option value="">Current Windows account</option>
-            {credentials.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label} ({item.username})
               </option>
             ))}
           </select>
@@ -182,7 +144,6 @@ export function RemoteWindowsPanel({
           assessment={assessment}
           canUninstall={canRun}
           mode="remote"
-          credentialId={credentialId || undefined}
           onUpdated={setAssessment}
         />
       ) : null}

@@ -4,8 +4,6 @@ import path from 'node:path';
 import { getAssetById } from '../assets/repository';
 import { parseAssetId } from '../assets/validate';
 import { parseUninstallKey, parseUninstallMode } from './validate';
-import { parseCredentialId } from '../credentials/validate';
-import { readStoredSecret } from '../credentials/vault';
 import { requireRole, requireSession } from '../auth/session';
 import { isTargetAuthorized } from '../nmap/authorize';
 import { loadAuthorizedRanges } from '../nmap/load-ranges';
@@ -31,7 +29,7 @@ import {
 const LOCAL_NOTES =
   'Local Windows configuration collected with a fixed PowerShell script. This is not a CVE finding.';
 const REMOTE_NOTES =
-  'Remote Windows configuration collected over WinRM. Passwords are stored only in Windows Credential Manager, not in MySQL. This is not a CVE finding.';
+  'Remote Windows configuration collected over WinRM using the Windows account that launched NetXScan. This is not a CVE finding.';
 
 function rangesPath(): string {
   return path.join(app.getPath('userData'), 'authorized-networks.json');
@@ -189,12 +187,6 @@ export function registerWindowsIpc(): void {
         return { ok: false, error: 'not_authorized_range' };
       }
 
-      const secret = await loadWinRmSecret(payload);
-
-      if (!secret.ok) {
-        return secret;
-      }
-
       if (!tryStartScan()) {
         return { ok: false, error: 'scan_in_progress' };
       }
@@ -202,7 +194,7 @@ export function registerWindowsIpc(): void {
       try {
         const raw = await runRemoteWindowsCollect(
           ipAddress,
-          secret.credential,
+          undefined,
           hostname,
         );
         const facts = parseWindowsFacts(raw, [ipAddress]);
@@ -337,12 +329,6 @@ export function registerWindowsIpc(): void {
         return { ok: false, error: 'not_authorized_range' };
       }
 
-      const secret = await loadWinRmSecret(payload);
-
-      if (!secret.ok) {
-        return secret;
-      }
-
       if (!tryStartScan()) {
         return { ok: false, error: 'scan_in_progress' };
       }
@@ -351,12 +337,12 @@ export function registerWindowsIpc(): void {
         await runRemoteWindowsUninstall(
           ipAddress,
           uninstallKey,
-          secret.credential,
+          undefined,
           hostname,
         );
         const raw = await runRemoteWindowsCollect(
           ipAddress,
-          secret.credential,
+          undefined,
           hostname,
         );
         const facts = parseWindowsFacts(raw, [ipAddress]);
@@ -377,37 +363,6 @@ export function registerWindowsIpc(): void {
       }
     },
   );
-}
-
-async function loadWinRmSecret(
-  payload: unknown,
-): Promise<
-  | { ok: true; credential?: { username: string; password: string } }
-  | { ok: false; error: 'credential_missing' | 'invalid_input' }
-> {
-  const record =
-    payload && typeof payload === 'object'
-      ? (payload as Record<string, unknown>)
-      : null;
-  const credentialId = record?.credentialId;
-
-  if (credentialId === undefined || credentialId === null || credentialId === '') {
-    return { ok: true };
-  }
-
-  const id = parseCredentialId(credentialId);
-
-  if (!id) {
-    return { ok: false, error: 'invalid_input' };
-  }
-
-  const secret = await readStoredSecret(id);
-
-  if (!secret) {
-    return { ok: false, error: 'credential_missing' };
-  }
-
-  return { ok: true, credential: secret };
 }
 
 function mapUninstallError(
