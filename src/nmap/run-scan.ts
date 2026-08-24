@@ -4,12 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import type { NmapHost } from '../shared/scan-types';
 import { enrichHostsWithDns } from './hostnames';
+import { enrichHostsWithPingA } from './ping-hostname';
 import { parseNmapXml } from './parse-xml';
 
 const PING_TIMEOUT_MS = 120_000;
 const DISCOVERY_TIMEOUT_MS = 900_000;
 
-const PING_ARGS = ['-sn', '-R', '-T3', '--max-retries', '1'] as const;
+const PING_ARGS = ['-sn', '-T3', '--max-retries', '1'] as const;
 const DISCOVERY_ARGS = [
   '-sT',
   '-sV',
@@ -50,7 +51,8 @@ export async function runAuthorizedPingScan(
   nmapPath: string,
   target: string,
 ): Promise<NmapHost[]> {
-  return runNmap(nmapPath, [...PING_ARGS], target, PING_TIMEOUT_MS);
+  const xml = await runNmapXml(nmapPath, [...PING_ARGS], target, PING_TIMEOUT_MS);
+  return enrichHostsWithPingA(parseNmapXml(xml));
 }
 
 export async function runAuthorizedDiscoveryScan(

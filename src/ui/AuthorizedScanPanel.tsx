@@ -96,10 +96,14 @@ export function AuthorizedScanPanel({
     const upHosts = result.hosts.filter((host) => host.status === 'up');
     setHosts(upHosts);
 
+    onInventoryChanged();
     if (mode === 'discovery') {
-      onInventoryChanged();
       setMessage(
         `Saved ${result.savedCount ?? 0} live host(s) to the asset inventory.`,
+      );
+    } else {
+      setMessage(
+        `Ping finished. Saved ${result.savedCount ?? 0} live host(s); hostnames come from ping -a.`,
       );
     }
   };
@@ -114,9 +118,9 @@ export function AuthorizedScanPanel({
       <h2 className="text-lg font-semibold">Authorized network discovery</h2>
       <p className="text-sm text-health-subtle">
         Discovery uses a fixed Nmap profile (TCP connect, light version
-        detection, top 20 ports, reverse DNS). Hostnames are stored when PTR
-        or system DNS returns a name. Targets must be inside
-        authorized-networks.json.
+        detection, top 20 ports). Ping only uses Nmap host discovery, then
+        Windows ping -a for hostnames, and saves those names without replacing
+        open-port data. Targets must be inside authorized-networks.json.
         Live hosts are created or updated in inventory. This does not assess TLS
         or SMB and does not mark hosts as vulnerable.
       </p>

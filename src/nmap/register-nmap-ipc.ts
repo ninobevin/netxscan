@@ -1,6 +1,6 @@
 import { app, ipcMain } from 'electron';
 import path from 'node:path';
-import { upsertDiscoveredHost } from '../assets/repository';
+import { upsertDiscoveredHost, upsertPingHost } from '../assets/repository';
 import { requireRole, requireSession } from '../auth/session';
 import { markAssetsSeenInScan, recordScan } from '../dashboard/repository';
 import { writeAudit } from '../audit/repository';
@@ -40,7 +40,7 @@ function requireAdministrator(): AuthorizedScanResult | null {
 async function runControlledScan(
   payload: unknown,
   runner: (nmapPath: string, target: string) => Promise<NmapHost[]>,
-  saveHosts: boolean,
+  mode: 'ping' | 'discovery',
 ): Promise<AuthorizedScanResult> {
   const denied = requireAdministrator();
 
@@ -92,23 +92,26 @@ async function runControlledScan(
       .filter((host) => host.status === 'up')
       .map((host) => host.ipAddress);
 
-    if (saveHosts) {
+    if (mode === 'discovery') {
       for (const host of hosts) {
         if (host.status === 'up') {
           await upsertDiscoveredHost(host);
           savedCount += 1;
         }
       }
+    } else {
+      for (const host of hosts) {
+        if (host.status === 'up') {
+          await upsertPingHost(host);
+          savedCount += 1;
+        }
+      }
     }
 
-    const scanId = await recordScan(
-      saveHosts ? 'discovery' : 'ping',
-      target,
-      upIps.length,
-    );
+    const scanId = await recordScan(mode, target, upIps.length);
     await markAssetsSeenInScan(scanId, upIps);
     await writeAudit(
-      saveHosts ? 'scan_discovery' : 'scan_ping',
+      mode === 'discovery' ? 'scan_discovery' : 'scan_ping',
       `${target} · ${upIps.length} host(s) up`,
     );
 
@@ -153,10 +156,10 @@ export function registerNmapIpc(): void {
   );
 
   ipcMain.handle(ipcChannels.scanRun, async (_event, payload: unknown) => {
-    return runControlledScan(payload, runAuthorizedPingScan, false);
+    return runControlledScan(payload, runAuthorizedPingScan, 'ping');
   });
 
   ipcMain.handle(ipcChannels.scanDiscover, async (_event, payload: unknown) => {
-    return runControlledScan(payload, runAuthorizedDiscoveryScan, true);
+    return runControlledScan(payload, runAuthorizedDiscoveryScan, 'discovery');
   });
 }

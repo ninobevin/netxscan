@@ -288,3 +288,35 @@ export async function upsertDiscoveredHost(host: NmapHost): Promise<void> {
     );
   }
 }
+
+export async function upsertPingHost(host: NmapHost): Promise<void> {
+  if (host.status !== 'up') {
+    return;
+  }
+
+  const db = getDb();
+  const [rows] = await db.query(
+    `SELECT ${SELECT_FIELDS} FROM assets WHERE ip_address = :ip LIMIT 1`,
+    { ip: host.ipAddress },
+  );
+  const existing = (rows as AssetRow[])[0];
+  const hostname = discoveryHostname(host, existing?.hostname ?? host.ipAddress);
+
+  if (existing) {
+    await db.query(
+      `UPDATE assets SET hostname = :hostname WHERE id = :id`,
+      { id: existing.id, hostname },
+    );
+    return;
+  }
+
+  await db.query(
+    `INSERT INTO assets (id, hostname, ip_address, mac_address, asset_type, notes)
+     VALUES (:id, :hostname, :ipAddress, NULL, 'other', NULL)`,
+    {
+      id: randomUUID(),
+      hostname,
+      ipAddress: host.ipAddress,
+    },
+  );
+}

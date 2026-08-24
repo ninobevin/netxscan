@@ -1,5 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
+import path from 'node:path';
 import { ipv4ToInt } from '../nmap/authorize';
 import { winRmComputerName } from '../nmap/hostnames';
 import {
@@ -28,43 +31,6 @@ if (
   throw 'invalid_host'
 }
 `.trim();
-
-function quoteArg(value: string): string {
-  if (/^[A-Za-z0-9._\\@\-]+$/.test(value)) {
-    return value;
-  }
-
-  return `"${value.replace(/"/g, '\\"')}"`;
-}
-
-function logWinRmCommand(
-  script: string,
-  extraArgs: string[],
-  passwordOnStdin: boolean,
-): void {
-  const encoded = Buffer.from(script, 'utf16le').toString('base64');
-  const tail = extraArgs.map(quoteArg).join(' ');
-  const computerName = extraArgs[0] ?? '';
-  console.log('[NetXScan] Remote Windows collect — PowerShell command:');
-  console.log(
-    `${POWERSHELL} -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}${
-      tail ? ` ${tail}` : ''
-    }`,
-  );
-  if (passwordOnStdin) {
-    const user = extraArgs[1] ?? '';
-    console.log(
-      `[NetXScan] Equivalent: Invoke-Command -ComputerName ${quoteArg(computerName)} -Credential (PSCredential for ${quoteArg(user)}) -Authentication Negotiate -ScriptBlock { <fixed collect script> }`,
-    );
-    console.log(
-      '[NetXScan] The credential password is written to PowerShell stdin and is not printed.',
-    );
-  } else {
-    console.log(
-      `[NetXScan] Equivalent: Invoke-Command -ComputerName ${quoteArg(computerName)} -ScriptBlock { <fixed collect script> }`,
-    );
-  }
-}
 
 export function localIPv4Addresses(): string[] {
   const nets = os.networkInterfaces();
@@ -121,7 +87,6 @@ if ($json -is [string]) {
 }
 `.trim();
 
-    logWinRmCommand(wrapper, [computerName], false);
     return runPowerShellEncoded(
       wrapper,
       [computerName],
@@ -149,7 +114,6 @@ if ($json -is [string]) {
 }
 `.trim();
 
-  logWinRmCommand(wrapper, [computerName, credential.username], true);
   return runPowerShellEncoded(
     wrapper,
     [computerName, credential.username],
@@ -293,7 +257,7 @@ export function parseWindowsFacts(
   };
 }
 
-export function runPowerShellEncoded(
+export async function runPowerShellEncoded(
   script: string,
   extraArgs: string[],
   timeoutMs: number,
@@ -301,65 +265,100 @@ export function runPowerShellEncoded(
   hideWindow = true,
   stdin?: string,
 ): Promise<unknown> {
-  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+  const filePath = path.join(os.tmpdir(), `netxscan-${randomUUID()}.ps1`);
+  await writeFile(filePath, `\uFEFF${script}\r\n`, 'utf8');
 
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      POWERSHELL,
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-EncodedCommand',
-        encoded,
-        ...extraArgs,
-      ],
-      { shell: false, windowsHide: hideWindow },
+  const argv = [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    filePath,
+    ...extraArgs,
+  ];
+
+  if (failCode === 'winrm_failed') {
+    const quoted = extraArgs.map((value) =>
+      /^[A-Za-z0-9._\\@\-]+$/.test(value) ? value : `"${value.replace(/"/g, '\\"')}"`,
     );
-
-    let stdout = '';
-
-    const timer = setTimeout(() => {
-      child.kill();
-      reject(new Error('timeout'));
-    }, timeoutMs);
-
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf8');
-    });
-
-    child.on('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-
-    child.on('close', (code) => {
-      clearTimeout(timer);
-
-      if (code !== 0) {
-        reject(new Error(failCode));
-        return;
-      }
-
-      try {
-        let parsed: unknown = JSON.parse(stdout.trim());
-        if (typeof parsed === 'string') {
-          parsed = JSON.parse(parsed);
-        }
-        resolve(parsed);
-      } catch {
-        reject(new Error(failCode));
-      }
-    });
-
-    if (stdin !== undefined) {
-      child.stdin.write(stdin, 'utf8');
-      child.stdin.end();
-    } else {
-      child.stdin.end();
+    console.log('[NetXScan] Remote Windows PowerShell:');
+    console.log(`${POWERSHELL} ${argv.map((part) => (part.includes(' ') ? `"${part}"` : part)).join(' ')}`);
+    if (extraArgs[0]) {
+      console.log(
+        `[NetXScan] Invoke-Command -ComputerName ${quoted[0]} -ScriptBlock { <fixed collect script> }`,
+      );
     }
-  });
+  }
+
+  try {
+    return await new Promise((resolve, reject) => {
+      const child = spawn(POWERSHELL, argv, {
+        shell: false,
+        windowsHide: hideWindow,
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      const timer = setTimeout(() => {
+        child.kill();
+        reject(new Error('timeout'));
+      }, timeoutMs);
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8');
+      });
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf8');
+      });
+
+      child.on('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+
+      child.on('close', (code) => {
+        clearTimeout(timer);
+
+        if (code !== 0) {
+          if (stderr.trim()) {
+            console.log('[NetXScan] PowerShell stderr:');
+            console.log(stderr.trim());
+          }
+          reject(new Error(failCode));
+          return;
+        }
+
+        try {
+          let parsed: unknown = JSON.parse(stdout.trim());
+          if (typeof parsed === 'string') {
+            parsed = JSON.parse(parsed);
+          }
+          resolve(parsed);
+        } catch {
+          if (stderr.trim()) {
+            console.log('[NetXScan] PowerShell stderr:');
+            console.log(stderr.trim());
+          }
+          reject(new Error(failCode));
+        }
+      });
+
+      if (stdin !== undefined) {
+        child.stdin.write(stdin, 'utf8');
+        child.stdin.end();
+      } else {
+        child.stdin.end();
+      }
+    });
+  } finally {
+    try {
+      await unlink(filePath);
+    } catch {
+      // temp script already removed
+    }
+  }
 }
 
 function asString(value: unknown): string | null {
