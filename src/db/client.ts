@@ -1,11 +1,16 @@
 import { DatabaseSync } from 'node:sqlite';
-import mysql from 'mysql2/promise';
+import type { Pool } from 'mysql2/promise';
 import type { DatabaseConfig } from './config';
 import type { DbClient, QueryHeader, QueryParams } from './types';
 
 let client: DbClient | undefined;
-let mysqlPool: mysql.Pool | undefined;
+let mysqlPool: Pool | undefined;
 let sqliteDb: DatabaseSync | undefined;
+
+async function mysqlDriver() {
+  const mod = await import('mysql2/promise');
+  return mod.default ?? mod;
+}
 
 export async function initializeDatabase(
   config: DatabaseConfig,
@@ -16,6 +21,8 @@ export async function initializeDatabase(
     client = createSqliteClient(config.filePath);
     return client;
   }
+
+  const mysql = await mysqlDriver();
 
   const bootstrap = await mysql.createConnection({
     host: config.host,

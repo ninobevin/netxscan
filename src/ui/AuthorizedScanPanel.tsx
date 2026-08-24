@@ -114,7 +114,8 @@ export function AuthorizedScanPanel({
       <h2 className="text-lg font-semibold">Authorized network discovery</h2>
       <p className="text-sm text-health-subtle">
         Discovery uses a fixed Nmap profile (TCP connect, light version
-        detection, top 20 ports). Targets must be inside authorized-networks.json.
+        detection, top 20 ports, no per-host timeout). Targets must be inside
+        authorized-networks.json.
         Live hosts are created or updated in inventory. This does not assess TLS
         or SMB and does not mark hosts as vulnerable.
       </p>

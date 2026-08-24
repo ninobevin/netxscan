@@ -6,7 +6,7 @@ import type { NmapHost } from '../shared/scan-types';
 import { parseNmapXml } from './parse-xml';
 
 const PING_TIMEOUT_MS = 120_000;
-const DISCOVERY_TIMEOUT_MS = 300_000;
+const DISCOVERY_TIMEOUT_MS = 900_000;
 
 const PING_ARGS = ['-sn', '-T3', '--max-retries', '1'] as const;
 const DISCOVERY_ARGS = [
@@ -17,8 +17,6 @@ const DISCOVERY_ARGS = [
   '-T3',
   '--max-retries',
   '1',
-  '--host-timeout',
-  '30s',
   '--top-ports',
   '20',
 ] as const;
