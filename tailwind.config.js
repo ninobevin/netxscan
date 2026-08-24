@@ -14,6 +14,13 @@ module.exports = {
           text: '#1a3a3a',
           subtle: '#5c7373',
           danger: '#b42318',
+          nist: {
+            critical: '#9b111e',
+            high: '#d32f2f',
+            moderate: '#f9a825',
+            low: '#1976d2',
+            info: '#2e7d32',
+          },
         },
       },
       fontFamily: {

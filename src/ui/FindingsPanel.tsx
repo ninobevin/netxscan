@@ -142,11 +142,12 @@ export function FindingsPanel({ canCreate }: FindingsPanelProps) {
     <section className="app-card">
       <h2 className="text-lg font-semibold">Findings</h2>
       <p className="text-sm text-health-subtle">
-        Module 14 turns correlation matches into tracked findings. An open port
-        is still not a finding by itself. Administrators create or refresh
-        records from the last correlation run. Administrators and IT support can
-        update status and notes. Resolved findings that match again are reopened.
-        Accepted risk and false positive stay closed.
+        Correlation matches and service assessments both land here. Assessment
+        rows use ids such as NX-SMBV1 and NIST-colored severity. An open port
+        is still not a CVE. Administrators can also refresh records from the
+        last correlation run. Administrators and IT support update status and
+        notes. Resolved findings that match again are reopened. Accepted risk
+        and false positive stay closed.
       </p>
       <form
         className="flex flex-wrap items-end gap-3"
@@ -235,8 +236,25 @@ export function FindingsPanel({ canCreate }: FindingsPanelProps) {
                     </td>
                     <td className="px-3 py-2">
                       <p className="font-medium">{item.title}</p>
-                      <p className="text-health-subtle">
-                        {item.cveId} · {item.severity} · {item.source}
+                      <p className="mt-1 flex flex-wrap items-center gap-2">
+                        <span
+                          className={
+                            item.severity === 'critical'
+                              ? 'rounded px-2 py-0.5 text-xs font-semibold uppercase text-white bg-health-nist-critical'
+                              : item.severity === 'high'
+                                ? 'rounded px-2 py-0.5 text-xs font-semibold uppercase text-white bg-health-nist-high'
+                                : item.severity === 'medium'
+                                  ? 'rounded px-2 py-0.5 text-xs font-semibold uppercase text-health-text bg-health-nist-moderate'
+                                  : item.severity === 'low'
+                                    ? 'rounded px-2 py-0.5 text-xs font-semibold uppercase text-white bg-health-nist-low'
+                                    : 'rounded px-2 py-0.5 text-xs font-semibold uppercase text-white bg-health-nist-info'
+                          }
+                        >
+                          {item.severity === 'medium' ? 'moderate' : item.severity}
+                        </span>
+                        <span className="text-health-subtle">
+                          {item.cveId} · {item.source}
+                        </span>
                       </p>
                       <p className="mt-1">{item.evidence}</p>
                       <p className="mt-1 text-health-subtle">

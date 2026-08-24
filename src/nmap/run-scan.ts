@@ -62,6 +62,9 @@ export async function runAuthorizedDiscoveryScan(
   return runNmap(nmapPath, [...DISCOVERY_ARGS], target, DISCOVERY_TIMEOUT_MS);
 }
 
+export const ASSESSMENT_TCP_PORTS =
+  '21,23,25,80,110,139,143,389,443,445,1433,3306,3389,5432,5900,5985,6379,8080,9100,27017';
+
 export async function runAuthorizedServiceAssessment(
   nmapPath: string,
   target: string,
@@ -71,9 +74,9 @@ export async function runAuthorizedServiceAssessment(
     [
       '-sT',
       '-p',
-      '443,445',
+      ASSESSMENT_TCP_PORTS,
       '--script',
-      'ssl-cert,ssl-enum-ciphers,smb-protocols',
+      'ssl-cert,ssl-enum-ciphers,smb-protocols,smb2-security-mode',
       '-T3',
       '--max-retries',
       '1',
@@ -81,7 +84,7 @@ export async function runAuthorizedServiceAssessment(
       '30s',
     ],
     target,
-    180_000,
+    240_000,
   );
 }
 

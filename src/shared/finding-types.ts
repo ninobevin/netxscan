@@ -20,7 +20,7 @@ export type Finding = {
   title: string;
   description: string;
   severity: CveSeverity;
-  source: 'correlation';
+  source: 'correlation' | 'assessment';
   evidence: string;
   recommendation: string;
   status: FindingStatus;

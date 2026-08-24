@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client';
 import type {
+  AssessmentIssue,
   ServiceAssessment,
   SmbFacts,
   TlsFacts,
@@ -19,13 +20,42 @@ function asIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
 }
 
+function parseNotes(raw: string): {
+  summary: string;
+  openPorts: number[];
+  issues: AssessmentIssue[];
+} {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object') {
+      const record = parsed as Record<string, unknown>;
+      return {
+        summary: typeof record.summary === 'string' ? record.summary : raw,
+        openPorts: Array.isArray(record.openPorts)
+          ? record.openPorts.filter((item): item is number => typeof item === 'number')
+          : [],
+        issues: Array.isArray(record.issues)
+          ? (record.issues as AssessmentIssue[])
+          : [],
+      };
+    }
+  } catch {
+    // plain-text notes from older assessments
+  }
+
+  return { summary: raw, openPorts: [], issues: [] };
+}
+
 function toAssessment(row: AssessmentRow): ServiceAssessment {
+  const extra = parseNotes(row.notes);
   return {
     id: row.id,
     assetId: row.asset_id,
     tls: JSON.parse(row.tls_json) as TlsFacts,
     smb: JSON.parse(row.smb_json) as SmbFacts,
-    notes: row.notes,
+    openPorts: extra.openPorts,
+    issues: extra.issues,
+    notes: extra.summary,
     createdAt: asIso(row.created_at),
   };
 }
@@ -35,6 +65,8 @@ export async function saveAssessment(
   tls: TlsFacts,
   smb: SmbFacts,
   notes: string,
+  openPorts: number[] = [],
+  issues: AssessmentIssue[] = [],
 ): Promise<ServiceAssessment> {
   const db = getDb();
   const id = randomUUID();
@@ -47,7 +79,7 @@ export async function saveAssessment(
       assetId,
       tlsJson: JSON.stringify(tls),
       smbJson: JSON.stringify(smb),
-      notes,
+      notes: JSON.stringify({ summary: notes.slice(0, 400), openPorts, issues }),
     },
   );
 

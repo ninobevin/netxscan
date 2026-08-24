@@ -2,6 +2,7 @@ import { app, ipcMain } from 'electron';
 import path from 'node:path';
 import { getAssetById } from '../assets/repository';
 import { parseAssetId } from '../assets/validate';
+import type { AssetService } from '../shared/asset-types';
 import { requireRole, requireSession } from '../auth/session';
 import { isTargetAuthorized } from '../nmap/authorize';
 import { loadAuthorizedRanges } from '../nmap/load-ranges';
@@ -12,7 +13,10 @@ import {
 import { endScan, tryStartScan } from '../nmap/scan-lock';
 import type { AssessmentResult } from '../shared/assessment-types';
 import { ipcChannels } from '../shared/ipc-channels';
+import { parseNmapXml } from '../nmap/parse-xml';
 import { writeAudit } from '../audit/repository';
+import { upsertFindingsFromMatches } from '../findings/repository';
+import { evaluateMisconfigurations, nistQualitative } from './misconfig';
 import {
   assessmentNotes,
   parseSmbFacts,
@@ -71,10 +75,14 @@ export function registerAssessIpc(): void {
       }
 
       let ipAddress: string | null = null;
+      let hostname = '';
+      let services: AssetService[] = [];
 
       try {
         const asset = await getAssetById(assetId);
         ipAddress = asset?.ipAddress ?? null;
+        hostname = asset?.hostname ?? '';
+        services = asset?.services ?? [];
 
         if (!asset) {
           return { ok: false, error: 'not_found' };
@@ -113,13 +121,41 @@ export function registerAssessIpc(): void {
         const xml = await runAuthorizedServiceAssessment(nmapPath, ipAddress);
         const tls = parseTlsFacts(xml);
         const smb = parseSmbFacts(xml);
+        const openPorts = (parseNmapXml(xml)[0]?.ports ?? []).map(
+          (port) => port.port,
+        );
+        const issues = evaluateMisconfigurations({
+          tls,
+          smb,
+          openPorts,
+          services,
+        });
         const assessment = await saveAssessment(
           assetId,
           tls,
           smb,
           assessmentNotes(),
+          openPorts,
+          issues,
         );
-        await writeAudit('assess_tls_smb', ipAddress);
+        await upsertFindingsFromMatches(
+          issues.map((issue) => ({
+            assetId,
+            hostname,
+            ipAddress,
+            cveId: issue.id,
+            title: issue.title,
+            severity: issue.severity,
+            evidence: issue.evidence,
+            recommendation: issue.recommendation,
+            description: `${issue.description} NIST qualitative rating: ${nistQualitative(issue.severity)}. Risk score ${issue.riskScore}.`,
+          })),
+          'assessment',
+        );
+        await writeAudit(
+          'assess_services',
+          `${ipAddress} · ${issues.length} issue(s)`,
+        );
         return { ok: true, assessment };
       } catch (error) {
         if (error instanceof Error && error.message === 'timeout') {

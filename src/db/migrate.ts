@@ -382,6 +382,14 @@ const migrations: Migration[] = [
       )
     `,
   },
+  {
+    name: '017_assessment_notes_text',
+    mysql: `
+      ALTER TABLE asset_assessments
+        MODIFY notes TEXT NOT NULL
+    `,
+    sqlite: null,
+  },
 ];
 
 export async function runMigrations(db: DbClient): Promise<void> {

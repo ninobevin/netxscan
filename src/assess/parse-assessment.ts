@@ -107,13 +107,24 @@ export function parseSmbFacts(xml: string): SmbFacts {
       /SMBv1/i.test(output) || /NT LM 0\.12/i.test(output);
   }
 
+  const signingOutput = scriptOutput(xml, 'smb2-security-mode');
+  let signingRequired: boolean | null = null;
+  if (signingOutput.length > 0) {
+    if (/not required|signing disabled/i.test(signingOutput)) {
+      signingRequired = false;
+    } else if (/required/i.test(signingOutput)) {
+      signingRequired = true;
+    }
+  }
+
   return {
     portOpen,
     dialects,
     smbv1Advertised,
+    signingRequired,
   };
 }
 
 export function assessmentNotes(): string {
-  return 'These are configuration facts from a controlled check. An open port or advertised protocol is not by itself a CVE finding.';
+  return 'Controlled service assessment of common clinic ports plus TLS ciphers, certificate dates, and SMB dialects/signing. Issues are configuration facts, not exploits or CVE lookups.';
 }

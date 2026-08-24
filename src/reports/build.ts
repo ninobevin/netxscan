@@ -160,8 +160,8 @@ async function reportBody(kind: ReportKind): Promise<string> {
                 : tls.smb.smbv1Advertised
                   ? 'yes'
                   : 'no'
-            }`
-          : 'no TLS/SMB check';
+            }; issues=${tls.issues.length}`
+          : 'no service assessment';
         const winText = win
           ? `${win.facts.operatingSystem ?? 'Windows'} · ${win.facts.software.length} software`
           : 'no Windows facts';

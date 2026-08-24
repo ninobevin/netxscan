@@ -44,7 +44,7 @@ function toFinding(row: FindingRow): Finding {
     title: row.title,
     description: row.description,
     severity: row.severity as CveSeverity,
-    source: 'correlation',
+    source: row.source === 'assessment' ? 'assessment' : 'correlation',
     evidence: row.evidence,
     recommendation: row.recommendation,
     status: row.status as FindingStatus,
@@ -117,6 +117,7 @@ export async function updateFinding(
 
 export async function upsertFindingsFromMatches(
   matches: EngineMatch[],
+  source: 'correlation' | 'assessment' = 'correlation',
 ): Promise<{ created: number; updated: number }> {
   const db = getDb();
   let created = 0;
@@ -146,7 +147,7 @@ export async function upsertFindingsFromMatches(
            evidence, recommendation, status, notes, first_detected,
            last_detected, resolved_at
          ) VALUES (
-           :id, :assetId, :cveId, :title, :description, :severity, 'correlation',
+           :id, :assetId, :cveId, :title, :description, :severity, :source,
            :evidence, :recommendation, 'open', '', :firstDetected,
            :lastDetected, NULL
          )`,
@@ -157,6 +158,7 @@ export async function upsertFindingsFromMatches(
           title: match.title.slice(0, 512),
           description: match.description.slice(0, 4000),
           severity: match.severity,
+          source,
           evidence: match.evidence.slice(0, 4000),
           recommendation: match.recommendation.slice(0, 1000),
           firstDetected: now,
@@ -186,6 +188,7 @@ export async function upsertFindingsFromMatches(
            recommendation = :recommendation,
            last_detected = :lastDetected,
            status = :status,
+           source = :source,
            resolved_at = :resolvedAt
        WHERE id = :id`,
       {
@@ -197,6 +200,7 @@ export async function upsertFindingsFromMatches(
         recommendation: match.recommendation.slice(0, 1000),
         lastDetected: now,
         status: nextStatus,
+        source,
         resolvedAt: reopen || nextStatus !== 'resolved' ? null : asIso(existing.resolved_at),
       },
     );

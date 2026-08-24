@@ -11,6 +11,17 @@ export type SmbFacts = {
   portOpen: boolean;
   dialects: string[];
   smbv1Advertised: boolean | null;
+  signingRequired?: boolean | null;
+};
+
+export type AssessmentIssue = {
+  id: string;
+  title: string;
+  description: string;
+  evidence: string;
+  recommendation: string;
+  severity: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  riskScore: number;
 };
 
 export type ServiceAssessment = {
@@ -18,6 +29,8 @@ export type ServiceAssessment = {
   assetId: string;
   tls: TlsFacts;
   smb: SmbFacts;
+  openPorts: number[];
+  issues: AssessmentIssue[];
   notes: string;
   createdAt: string;
 };
