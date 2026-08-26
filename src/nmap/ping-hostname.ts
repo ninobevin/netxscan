@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process';
 import { ipv4ToInt } from './authorize';
 import { parseDnsHostname } from './hostnames';
-import type { NmapHost } from '../shared/scan-types';
+import type { ScanHost } from '../shared/scan-types';
 
 const PING_MS = 4_000;
-const CONCURRENCY = 8;
+const CONCURRENCY = 24;
 
 export function parsePingAHostname(output: string, ipAddress: string): string | null {
   const match = output.match(
@@ -18,26 +18,33 @@ export function parsePingAHostname(output: string, ipAddress: string): string | 
   return parseDnsHostname(match[1]);
 }
 
-export async function enrichHostsWithPingA(
-  hosts: NmapHost[],
-): Promise<NmapHost[]> {
-  const pending = hosts.filter((host) => host.status === 'up');
+export function pingReplied(output: string): boolean {
+  if (/destination host unreachable|request timed out|transmit failed/i.test(output)) {
+    return false;
+  }
+
+  return /\bTTL=/i.test(output);
+}
+
+export async function pingAddresses(ipAddresses: string[]): Promise<ScanHost[]> {
+  const hosts: ScanHost[] = ipAddresses.map((ipAddress) => ({
+    ipAddress,
+    status: 'down',
+    hostname: null,
+  }));
   let index = 0;
 
   const workers = Array.from(
-    { length: Math.min(CONCURRENCY, pending.length) },
+    { length: Math.min(CONCURRENCY, Math.max(ipAddresses.length, 1)) },
     async () => {
-      while (index < pending.length) {
-        const host = pending[index];
+      while (index < ipAddresses.length) {
+        const current = index;
         index += 1;
-        if (!host) {
+        const ip = ipAddresses[current];
+        if (!ip) {
           continue;
         }
-
-        const name = await pingAHostname(host.ipAddress);
-        if (name) {
-          host.hostname = name;
-        }
+        hosts[current] = await pingOne(ip);
       }
     },
   );
@@ -46,9 +53,13 @@ export async function enrichHostsWithPingA(
   return hosts;
 }
 
-function pingAHostname(ipAddress: string): Promise<string | null> {
+function pingOne(ipAddress: string): Promise<ScanHost> {
   if (ipv4ToInt(ipAddress) === null) {
-    return Promise.resolve(null);
+    return Promise.resolve({
+      ipAddress,
+      status: 'down',
+      hostname: null,
+    });
   }
 
   const pingPath = process.env.SystemRoot
@@ -64,7 +75,7 @@ function pingAHostname(ipAddress: string): Promise<string | null> {
     let stdout = '';
     const timer = setTimeout(() => {
       child.kill();
-      resolve(parsePingAHostname(stdout, ipAddress));
+      resolve(fromOutput(ipAddress, stdout));
     }, PING_MS);
 
     child.stdout.on('data', (chunk: Buffer) => {
@@ -73,12 +84,21 @@ function pingAHostname(ipAddress: string): Promise<string | null> {
 
     child.on('error', () => {
       clearTimeout(timer);
-      resolve(null);
+      resolve({ ipAddress, status: 'down', hostname: null });
     });
 
     child.on('close', () => {
       clearTimeout(timer);
-      resolve(parsePingAHostname(stdout, ipAddress));
+      resolve(fromOutput(ipAddress, stdout));
     });
   });
+}
+
+function fromOutput(ipAddress: string, stdout: string): ScanHost {
+  const up = pingReplied(stdout);
+  return {
+    ipAddress,
+    status: up ? 'up' : 'down',
+    hostname: up ? parsePingAHostname(stdout, ipAddress) : null,
+  };
 }

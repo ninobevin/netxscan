@@ -5,7 +5,6 @@ import {
   type AssetInput,
   type AssetType,
 } from '../shared/asset-types';
-import { ServiceAssessmentPanel } from './ServiceAssessmentPanel';
 import { BusyButton } from './BusyButton';
 
 const emptyForm: AssetInput = {
@@ -50,15 +49,12 @@ function errorText(error: string): string {
 
 export function AssetInventory({
   refreshKey = 0,
-  canAssess = false,
 }: {
   refreshKey?: number;
-  canAssess?: boolean;
 }) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [form, setForm] = useState<AssetInput>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -251,7 +247,6 @@ export function AssetInventory({
                 <th className="py-2 pr-3 font-medium">Hostname</th>
                 <th className="py-2 pr-3 font-medium">IP</th>
                 <th className="py-2 pr-3 font-medium">Type</th>
-                <th className="py-2 pr-3 font-medium">Services</th>
                 <th className="py-2 font-medium">Actions</th>
               </tr>
             </thead>
@@ -261,25 +256,7 @@ export function AssetInventory({
                   <td className="py-2 pr-3">{asset.hostname}</td>
                   <td className="py-2 pr-3">{asset.ipAddress ?? '—'}</td>
                   <td className="py-2 pr-3">{typeLabel(asset.assetType)}</td>
-                  <td className="max-w-xs py-2 pr-3 text-health-subtle">
-                    {asset.services.length
-                      ? asset.services
-                          .map((service) =>
-                            service.serviceName
-                              ? `${service.port}/${service.serviceName}`
-                              : String(service.port),
-                          )
-                          .join(', ')
-                      : '—'}
-                  </td>
                   <td className="py-2">
-                    <button
-                      type="button"
-                      className="mr-3 text-health-accent"
-                      onClick={() => setSelectedAsset(asset)}
-                    >
-                      Assess
-                    </button>
                     <button
                       type="button"
                       className="mr-3 text-health-accent"
@@ -306,18 +283,6 @@ export function AssetInventory({
         )}
       </section>
     </div>
-    {selectedAsset ? (
-      <ServiceAssessmentPanel
-        assetId={selectedAsset.id}
-        assetLabel={
-          selectedAsset.ipAddress
-            ? `${selectedAsset.hostname} (${selectedAsset.ipAddress})`
-            : selectedAsset.hostname
-        }
-        canAssess={canAssess}
-        onClose={() => setSelectedAsset(null)}
-      />
-    ) : null}
     </>
   );
 }

@@ -1,17 +1,7 @@
-export type DiscoveredPort = {
-  port: number;
-  protocol: string;
-  serviceName: string | null;
-  product: string | null;
-  version: string | null;
-};
-
-export type NmapHost = {
+export type ScanHost = {
   ipAddress: string;
-  status: 'up' | 'down' | 'unknown';
+  status: 'up' | 'down';
   hostname: string | null;
-  macAddress: string | null;
-  ports: DiscoveredPort[];
 };
 
 export type AuthorizedScanError =
@@ -19,10 +9,8 @@ export type AuthorizedScanError =
   | 'forbidden'
   | 'invalid_input'
   | 'not_authorized_range'
-  | 'nmap_missing'
   | 'scan_in_progress'
-  | 'scan_failed'
-  | 'timeout';
+  | 'scan_failed';
 
 export type AuthorizedRangesResult =
   | { ok: true; ranges: string[] }
@@ -32,7 +20,7 @@ export type AuthorizedScanResult =
   | {
       ok: true;
       target: string;
-      hosts: NmapHost[];
+      hosts: ScanHost[];
       savedCount?: number;
     }
   | { ok: false; error: AuthorizedScanError };

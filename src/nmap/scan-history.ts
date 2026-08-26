@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client';
 
 export async function recordScan(
-  kind: 'ping' | 'discovery',
+  kind: 'ping',
   target: string,
   upCount: number,
 ): Promise<string> {

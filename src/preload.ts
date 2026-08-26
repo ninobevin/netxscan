@@ -21,12 +21,6 @@ const api: NetXScanApi = Object.freeze({
     ipcRenderer.invoke(ipcChannels.scanAuthorizedRanges),
   runAuthorizedScan: (target) =>
     ipcRenderer.invoke(ipcChannels.scanRun, { target }),
-  runDiscoveryScan: (target) =>
-    ipcRenderer.invoke(ipcChannels.scanDiscover, { target }),
-  runServiceAssessment: (assetId) =>
-    ipcRenderer.invoke(ipcChannels.assessRun, { id: assetId }),
-  getLatestAssessment: (assetId) =>
-    ipcRenderer.invoke(ipcChannels.assessLatest, { id: assetId }),
   getCompanyProfile: () => ipcRenderer.invoke(ipcChannels.companyGet),
   saveCompanyName: (companyName) =>
     ipcRenderer.invoke(ipcChannels.companySaveName, { companyName }),

@@ -22,7 +22,7 @@ const MENU_LOAD_MS = 450;
 
 const NAV_ITEMS: Array<{ id: AppView; label: string }> = [
   { id: 'inventory', label: 'Inventory' },
-  { id: 'discovery', label: 'Discovery' },
+  { id: 'discovery', label: 'Ping' },
   { id: 'audit', label: 'Audit' },
   { id: 'company', label: 'Settings' },
 ];
@@ -93,10 +93,7 @@ function Shell({ session, onLoggedOut, profile, onProfileUpdated }: ShellProps) 
       {menuLoading ? (
         <LoadingScreen />
       ) : view === 'inventory' ? (
-        <AssetInventory
-          refreshKey={inventoryKey}
-          canAssess={session.role === 'administrator'}
-        />
+        <AssetInventory refreshKey={inventoryKey} />
       ) : view === 'discovery' ? (
         <AuthorizedScanPanel
           canScan={session.role === 'administrator'}

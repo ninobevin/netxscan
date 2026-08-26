@@ -35,6 +35,41 @@ export function parseCidr(
   return { network, prefix, last };
 }
 
+export function intToIpv4(value: number): string {
+  return [
+    (value >>> 24) & 255,
+    (value >>> 16) & 255,
+    (value >>> 8) & 255,
+    value & 255,
+  ].join('.');
+}
+
+export function expandTargetToHostIps(target: string): string[] | null {
+  if (IPV4.test(target)) {
+    return [target];
+  }
+
+  const cidr = parseCidr(target);
+  if (!cidr) {
+    return null;
+  }
+
+  const ips: string[] = [];
+  let first = cidr.network;
+  let last = cidr.last;
+
+  if (cidr.prefix <= 30) {
+    first += 1;
+    last -= 1;
+  }
+
+  for (let value = first; value <= last; value += 1) {
+    ips.push(intToIpv4(value >>> 0));
+  }
+
+  return ips;
+}
+
 export function parseAuthorizedTarget(value: string): string | null {
   const trimmed = value.trim();
 

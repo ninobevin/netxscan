@@ -1,6 +1,5 @@
 import { app, ipcMain } from 'electron';
 import path from 'node:path';
-import { registerAssessIpc } from '../assess/register-assess-ipc';
 import { registerAssetIpc } from '../assets/register-asset-ipc';
 import { registerAuthIpc, requireSession } from '../auth/register-auth-ipc';
 import { initializeUserStore } from '../auth/user-store';
@@ -20,7 +19,6 @@ export async function registerIpcHandlers(): Promise<void> {
   registerAuthIpc();
   registerAssetIpc();
   registerNmapIpc();
-  registerAssessIpc();
   registerCompanyIpc();
   registerAuditIpc();
 

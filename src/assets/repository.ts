@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client';
 import type { Asset, AssetInput, AssetService } from '../shared/asset-types';
 import type { AssetType } from '../shared/asset-types';
-import type { NmapHost } from '../shared/scan-types';
+import type { ScanHost } from '../shared/scan-types';
 import { parseDnsHostname } from '../nmap/hostnames';
 
 type AssetRow = {
@@ -202,10 +202,7 @@ async function attachServices(assets: Asset[]): Promise<void> {
   }
 }
 
-const MAC =
-  /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
-
-function discoveryHostname(host: NmapHost, fallback: string): string {
+function discoveryHostname(host: ScanHost, fallback: string): string {
   const resolved = parseDnsHostname(host.hostname);
   if (resolved) {
     return resolved.slice(0, 128);
@@ -219,77 +216,7 @@ function discoveryHostname(host: NmapHost, fallback: string): string {
   return fallback;
 }
 
-function discoveryMac(host: NmapHost): string | null {
-  if (!host.macAddress || !MAC.test(host.macAddress)) {
-    return null;
-  }
-
-  return host.macAddress.toUpperCase().replace(/-/g, ':');
-}
-
-export async function upsertDiscoveredHost(host: NmapHost): Promise<void> {
-  if (host.status !== 'up') {
-    return;
-  }
-
-  const db = getDb();
-  const [rows] = await db.query(
-    `SELECT ${SELECT_FIELDS} FROM assets WHERE ip_address = :ip LIMIT 1`,
-    { ip: host.ipAddress },
-  );
-  const existing = (rows as AssetRow[])[0];
-  const macAddress = discoveryMac(host);
-
-  let assetId: string;
-
-  if (existing) {
-    assetId = existing.id;
-    const hostname = discoveryHostname(host, existing.hostname);
-    await db.query(
-      `UPDATE assets
-       SET hostname = :hostname,
-           mac_address = COALESCE(:macAddress, mac_address)
-       WHERE id = :id`,
-      { id: assetId, hostname, macAddress },
-    );
-  } else {
-    assetId = randomUUID();
-    const hostname = discoveryHostname(host, host.ipAddress);
-    await db.query(
-      `INSERT INTO assets (id, hostname, ip_address, mac_address, asset_type, notes)
-       VALUES (:id, :hostname, :ipAddress, :macAddress, 'other', NULL)`,
-      {
-        id: assetId,
-        hostname,
-        ipAddress: host.ipAddress,
-        macAddress,
-      },
-    );
-  }
-
-  await db.query('DELETE FROM asset_services WHERE asset_id = :id', {
-    id: assetId,
-  });
-
-  for (const service of host.ports) {
-    await db.query(
-      `INSERT INTO asset_services
-        (id, asset_id, port, protocol, service_name, product, version)
-       VALUES (:id, :assetId, :port, :protocol, :serviceName, :product, :version)`,
-      {
-        id: randomUUID(),
-        assetId,
-        port: service.port,
-        protocol: service.protocol.slice(0, 8),
-        serviceName: service.serviceName?.slice(0, 64) ?? null,
-        product: service.product?.slice(0, 128) ?? null,
-        version: service.version?.slice(0, 64) ?? null,
-      },
-    );
-  }
-}
-
-export async function upsertPingHost(host: NmapHost): Promise<void> {
+export async function upsertPingHost(host: ScanHost): Promise<void> {
   if (host.status !== 'up') {
     return;
   }
@@ -320,3 +247,4 @@ export async function upsertPingHost(host: NmapHost): Promise<void> {
     },
   );
 }
+

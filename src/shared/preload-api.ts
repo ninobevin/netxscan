@@ -3,7 +3,6 @@ import type {
   AssetItemResult,
   AssetListResult,
 } from './asset-types';
-import type { AssessmentResult } from './assessment-types';
 import type { LoginResult, PublicSession } from './auth-types';
 import type { DatabaseStatus } from './database-status';
 import type {
@@ -27,9 +26,6 @@ export type NetXScanApi = {
   archiveAsset: (id: string) => Promise<AssetItemResult>;
   getAuthorizedRanges: () => Promise<AuthorizedRangesResult>;
   runAuthorizedScan: (target: string) => Promise<AuthorizedScanResult>;
-  runDiscoveryScan: (target: string) => Promise<AuthorizedScanResult>;
-  runServiceAssessment: (assetId: string) => Promise<AssessmentResult>;
-  getLatestAssessment: (assetId: string) => Promise<AssessmentResult>;
   getCompanyProfile: () => Promise<CompanyProfileResult>;
   saveCompanyName: (companyName: string) => Promise<CompanyProfileResult>;
   uploadCompanyLogo: () => Promise<CompanyProfileResult>;
