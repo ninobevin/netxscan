@@ -24,6 +24,7 @@ export type Asset = {
   macAddress: string | null;
   assetType: AssetType;
   notes: string | null;
+  location: string | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -36,6 +37,7 @@ export type AssetInput = {
   macAddress: string | null;
   assetType: AssetType;
   notes: string | null;
+  location: string | null;
 };
 
 export type AssetMutationError =
@@ -51,4 +53,8 @@ export type AssetListResult =
 
 export type AssetItemResult =
   | { ok: true; asset: Asset }
+  | { ok: false; error: AssetMutationError };
+
+export type LocationListResult =
+  | { ok: true; locations: string[] }
   | { ok: false; error: AssetMutationError };

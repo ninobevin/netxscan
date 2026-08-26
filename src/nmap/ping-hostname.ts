@@ -26,7 +26,10 @@ export function pingReplied(output: string): boolean {
   return /\bTTL=/i.test(output);
 }
 
-export async function pingAddresses(ipAddresses: string[]): Promise<ScanHost[]> {
+export async function pingAddresses(
+  ipAddresses: string[],
+  onHost?: (host: ScanHost) => Promise<void> | void,
+): Promise<ScanHost[]> {
   const hosts: ScanHost[] = ipAddresses.map((ipAddress) => ({
     ipAddress,
     status: 'down',
@@ -44,7 +47,11 @@ export async function pingAddresses(ipAddresses: string[]): Promise<ScanHost[]> 
         if (!ip) {
           continue;
         }
-        hosts[current] = await pingOne(ip);
+        const host = await pingOne(ip);
+        hosts[current] = host;
+        if (onHost) {
+          await onHost(host);
+        }
       }
     },
   );

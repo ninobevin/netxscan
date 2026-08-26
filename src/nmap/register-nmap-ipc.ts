@@ -1,4 +1,5 @@
 import { app, ipcMain } from 'electron';
+import type { IpcMainInvokeEvent } from 'electron';
 import path from 'node:path';
 import { upsertPingHost } from '../assets/repository';
 import { requireRole, requireSession } from '../auth/session';
@@ -56,7 +57,10 @@ export function registerNmapIpc(): void {
 
   ipcMain.handle(
     ipcChannels.scanRun,
-    async (_event, payload: unknown): Promise<AuthorizedScanResult> => {
+    async (
+      event: IpcMainInvokeEvent,
+      payload: unknown,
+    ): Promise<AuthorizedScanResult> => {
       const denied = requireAdministrator();
       if (denied) {
         return denied;
@@ -96,21 +100,38 @@ export function registerNmapIpc(): void {
         return { ok: false, error: 'scan_in_progress' };
       }
 
-      try {
-        const hosts = await pingAddresses(ips);
-        const upHosts = hosts.filter((host) => host.status === 'up');
-        let savedCount = 0;
-        for (const host of upHosts) {
-          await upsertPingHost(host);
-          savedCount += 1;
-        }
+      let upsertQueue = Promise.resolve();
+      const enqueue = (work: () => Promise<void>): Promise<void> => {
+        upsertQueue = upsertQueue.then(work, work);
+        return upsertQueue;
+      };
 
+      try {
+        const hosts = await pingAddresses(ips, async (host) => {
+          if (host.status !== 'up') {
+            return;
+          }
+
+          await enqueue(async () => {
+            const asset = await upsertPingHost(host);
+            if (asset && !event.sender.isDestroyed()) {
+              event.sender.send(ipcChannels.scanHostFound, asset);
+            }
+          });
+        });
+
+        const upHosts = hosts.filter((host) => host.status === 'up');
         const upIps = upHosts.map((host) => host.ipAddress);
         const scanId = await recordScan('ping', target, upIps.length);
         await markAssetsSeenInScan(scanId, upIps);
         await writeAudit('scan_ping', `${target} · ${upIps.length} host(s) up`);
 
-        return { ok: true, target, hosts: upHosts, savedCount };
+        return {
+          ok: true,
+          target,
+          hosts: upHosts,
+          savedCount: upHosts.length,
+        };
       } catch {
         return { ok: false, error: 'scan_failed' };
       } finally {

@@ -1,7 +1,9 @@
 import type {
+  Asset,
   AssetInput,
   AssetItemResult,
   AssetListResult,
+  LocationListResult,
 } from './asset-types';
 import type { LoginResult, PublicSession } from './auth-types';
 import type { DatabaseStatus } from './database-status';
@@ -21,11 +23,13 @@ export type NetXScanApi = {
   getSession: () => Promise<PublicSession | null>;
   listAssets: (includeArchived?: boolean) => Promise<AssetListResult>;
   getAsset: (id: string) => Promise<AssetItemResult>;
-  createAsset: (input: AssetInput) => Promise<AssetItemResult>;
   updateAsset: (id: string, input: AssetInput) => Promise<AssetItemResult>;
-  archiveAsset: (id: string) => Promise<AssetItemResult>;
+  deleteAsset: (id: string) => Promise<AssetItemResult>;
+  listLocations: () => Promise<LocationListResult>;
+  addLocation: (name: string) => Promise<LocationListResult>;
   getAuthorizedRanges: () => Promise<AuthorizedRangesResult>;
   runAuthorizedScan: (target: string) => Promise<AuthorizedScanResult>;
+  onScanHostFound: (listener: (asset: Asset) => void) => () => void;
   getCompanyProfile: () => Promise<CompanyProfileResult>;
   saveCompanyName: (companyName: string) => Promise<CompanyProfileResult>;
   uploadCompanyLogo: () => Promise<CompanyProfileResult>;

@@ -390,6 +390,35 @@ const migrations: Migration[] = [
     `,
     sqlite: null,
   },
+  {
+    name: '018_asset_location',
+    mysql: `
+      ALTER TABLE assets
+        ADD COLUMN location VARCHAR(128) NULL
+    `,
+    sqlite: `
+      ALTER TABLE assets ADD COLUMN location TEXT
+    `,
+  },
+  {
+    name: '019_locations',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS locations (
+        id CHAR(36) NOT NULL,
+        name VARCHAR(128) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY locations_name_unique (name)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS locations (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `,
+  },
 ];
 
 export async function runMigrations(db: DbClient): Promise<void> {

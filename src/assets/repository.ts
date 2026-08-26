@@ -12,6 +12,7 @@ type AssetRow = {
   mac_address: string | null;
   asset_type: string;
   notes: string | null;
+  location: string | null;
   archived_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
@@ -37,6 +38,7 @@ function toAsset(row: AssetRow): Asset {
     macAddress: row.mac_address,
     assetType: row.asset_type as AssetType,
     notes: row.notes,
+    location: row.location,
     archivedAt: asIso(row.archived_at),
     createdAt: asIso(row.created_at) ?? '',
     updatedAt: asIso(row.updated_at) ?? '',
@@ -45,7 +47,7 @@ function toAsset(row: AssetRow): Asset {
 }
 
 const SELECT_FIELDS = `id, hostname, ip_address, mac_address, asset_type, notes,
-  archived_at, created_at, updated_at`;
+  location, archived_at, created_at, updated_at`;
 
 export async function listAssets(includeArchived: boolean): Promise<Asset[]> {
   const db = getDb();
@@ -74,32 +76,6 @@ export async function getAssetById(id: string): Promise<Asset | undefined> {
   return asset;
 }
 
-export async function createAsset(input: AssetInput): Promise<Asset> {
-  const db = getDb();
-  const id = randomUUID();
-
-  await db.query(
-    `INSERT INTO assets (id, hostname, ip_address, mac_address, asset_type, notes)
-     VALUES (:id, :hostname, :ipAddress, :macAddress, :assetType, :notes)`,
-    {
-      id,
-      hostname: input.hostname,
-      ipAddress: input.ipAddress,
-      macAddress: input.macAddress,
-      assetType: input.assetType,
-      notes: input.notes,
-    },
-  );
-
-  const created = await getAssetById(id);
-
-  if (!created) {
-    throw new Error('Asset create failed.');
-  }
-
-  return created;
-}
-
 export async function updateAsset(
   id: string,
   input: AssetInput,
@@ -111,8 +87,9 @@ export async function updateAsset(
          ip_address = :ipAddress,
          mac_address = :macAddress,
          asset_type = :assetType,
-         notes = :notes
-     WHERE id = :id AND archived_at IS NULL`,
+         notes = :notes,
+         location = :location
+     WHERE id = :id`,
     {
       id,
       hostname: input.hostname,
@@ -120,6 +97,7 @@ export async function updateAsset(
       macAddress: input.macAddress,
       assetType: input.assetType,
       notes: input.notes,
+      location: input.location,
     },
   );
   const header = result as { affectedRows?: number };
@@ -131,21 +109,36 @@ export async function updateAsset(
   return getAssetById(id);
 }
 
-export async function archiveAsset(id: string): Promise<Asset | undefined> {
-  const db = getDb();
-  const [result] = await db.query(
-    `UPDATE assets
-     SET archived_at = CURRENT_TIMESTAMP
-     WHERE id = :id AND archived_at IS NULL`,
-    { id },
-  );
-  const header = result as { affectedRows?: number };
+export async function deleteAsset(id: string): Promise<Asset | undefined> {
+  const existing = await getAssetById(id);
+  if (!existing) {
+    return undefined;
+  }
 
+  const db = getDb();
+  const statements = [
+    'DELETE FROM asset_services WHERE asset_id = :id',
+    'DELETE FROM asset_assessments WHERE asset_id = :id',
+    'DELETE FROM windows_assessments WHERE asset_id = :id',
+    'DELETE FROM findings WHERE asset_id = :id',
+    'DELETE FROM correlation_matches WHERE asset_id = :id',
+  ];
+
+  for (const sql of statements) {
+    try {
+      await db.query(sql, { id });
+    } catch {
+      // table may not exist on a fresh schema
+    }
+  }
+
+  const [result] = await db.query(`DELETE FROM assets WHERE id = :id`, { id });
+  const header = result as { affectedRows?: number };
   if (!header.affectedRows) {
     return undefined;
   }
 
-  return getAssetById(id);
+  return existing;
 }
 
 export function isDuplicateError(error: unknown): boolean {
@@ -216,9 +209,9 @@ function discoveryHostname(host: ScanHost, fallback: string): string {
   return fallback;
 }
 
-export async function upsertPingHost(host: ScanHost): Promise<void> {
+export async function upsertPingHost(host: ScanHost): Promise<Asset | undefined> {
   if (host.status !== 'up') {
-    return;
+    return undefined;
   }
 
   const db = getDb();
@@ -231,20 +224,24 @@ export async function upsertPingHost(host: ScanHost): Promise<void> {
 
   if (existing) {
     await db.query(
-      `UPDATE assets SET hostname = :hostname WHERE id = :id`,
+      `UPDATE assets
+       SET hostname = :hostname, archived_at = NULL
+       WHERE id = :id`,
       { id: existing.id, hostname },
     );
-    return;
+    return getAssetById(existing.id);
   }
 
+  const id = randomUUID();
   await db.query(
-    `INSERT INTO assets (id, hostname, ip_address, mac_address, asset_type, notes)
-     VALUES (:id, :hostname, :ipAddress, NULL, 'other', NULL)`,
+    `INSERT INTO assets (id, hostname, ip_address, mac_address, asset_type, notes, location)
+     VALUES (:id, :hostname, :ipAddress, NULL, 'other', NULL, NULL)`,
     {
-      id: randomUUID(),
+      id,
       hostname,
       ipAddress: host.ipAddress,
     },
   );
+  return getAssetById(id);
 }
 

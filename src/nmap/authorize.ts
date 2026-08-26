@@ -49,6 +49,15 @@ export function expandTargetToHostIps(target: string): string[] | null {
     return [target];
   }
 
+  const dash = parseDashRange(target);
+  if (dash) {
+    const ips: string[] = [];
+    for (let value = dash.first; value <= dash.last; value += 1) {
+      ips.push(intToIpv4(value >>> 0));
+    }
+    return ips;
+  }
+
   const cidr = parseCidr(target);
   if (!cidr) {
     return null;
@@ -70,6 +79,27 @@ export function expandTargetToHostIps(target: string): string[] | null {
   return ips;
 }
 
+export function parseDashRange(
+  value: string,
+): { first: number; last: number } | null {
+  const parts = value.trim().split(/\s*-\s*/);
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return null;
+  }
+
+  const first = ipv4ToInt(parts[0]);
+  const last = ipv4ToInt(parts[1]);
+  if (first === null || last === null || last < first) {
+    return null;
+  }
+
+  if (last - first > 65_534) {
+    return null;
+  }
+
+  return { first, last };
+}
+
 export function parseAuthorizedTarget(value: string): string | null {
   const trimmed = value.trim();
 
@@ -82,6 +112,11 @@ export function parseAuthorizedTarget(value: string): string | null {
     const ip = trimmed.slice(0, slash);
     const prefix = trimmed.slice(slash);
     return `${ip}${prefix}`;
+  }
+
+  const dash = parseDashRange(trimmed);
+  if (dash) {
+    return `${intToIpv4(dash.first)}-${intToIpv4(dash.last)}`;
   }
 
   return null;
@@ -102,6 +137,19 @@ export function isTargetAuthorized(target: string, ranges: string[]): boolean {
     return authorized.some(
       (range) => cidr.network >= range.network && cidr.last <= range.last,
     );
+  }
+
+  const dash = parseDashRange(target);
+  if (dash) {
+    for (let ip = dash.first; ip <= dash.last; ip += 1) {
+      const allowed = authorized.some(
+        (range) => ip >= range.network && ip <= range.last,
+      );
+      if (!allowed) {
+        return false;
+      }
+    }
+    return true;
   }
 
   const ip = ipv4ToInt(target);

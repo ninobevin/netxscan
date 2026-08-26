@@ -1,17 +1,25 @@
 import { ipcMain } from 'electron';
 import { requireSession } from '../auth/session';
 import { writeAudit } from '../audit/repository';
-import type { AssetItemResult, AssetListResult } from '../shared/asset-types';
+import type {
+  AssetItemResult,
+  AssetListResult,
+  LocationListResult,
+} from '../shared/asset-types';
 import { ipcChannels } from '../shared/ipc-channels';
+import { addLocationName, listLocationNames } from './locations';
 import {
-  archiveAsset,
-  createAsset,
+  deleteAsset,
   getAssetById,
   isDuplicateError,
   listAssets,
   updateAsset,
 } from './repository';
-import { parseAssetId, parseAssetInput } from './validate';
+import {
+  parseAssetId,
+  parseAssetInput,
+  parseLocationName,
+} from './validate';
 
 function requireAuth(): boolean {
   try {
@@ -67,36 +75,6 @@ export function registerAssetIpc(): void {
   );
 
   ipcMain.handle(
-    ipcChannels.assetCreate,
-    async (_event, payload: unknown): Promise<AssetItemResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      const input = parseAssetInput(payload);
-
-      if (!input) {
-        return { ok: false, error: 'invalid_input' };
-      }
-
-      try {
-        const asset = await createAsset(input);
-        await writeAudit(
-          'asset_create',
-          `${asset.hostname}${asset.ipAddress ? ` (${asset.ipAddress})` : ''}`,
-        );
-        return { ok: true, asset };
-      } catch (error) {
-        if (isDuplicateError(error)) {
-          return { ok: false, error: 'duplicate' };
-        }
-
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
-
-  ipcMain.handle(
     ipcChannels.assetUpdate,
     async (_event, payload: unknown): Promise<AssetItemResult> => {
       if (!requireAuth()) {
@@ -132,7 +110,7 @@ export function registerAssetIpc(): void {
   );
 
   ipcMain.handle(
-    ipcChannels.assetArchive,
+    ipcChannels.assetDelete,
     async (_event, payload: unknown): Promise<AssetItemResult> => {
       if (!requireAuth()) {
         return { ok: false, error: 'unauthorized' };
@@ -145,16 +123,54 @@ export function registerAssetIpc(): void {
       }
 
       try {
-        const asset = await archiveAsset(id);
+        const asset = await deleteAsset(id);
         if (!asset) {
           return { ok: false, error: 'not_found' };
         }
 
         await writeAudit(
-          'asset_archive',
+          'asset_delete',
           `${asset.hostname}${asset.ipAddress ? ` (${asset.ipAddress})` : ''}`,
         );
         return { ok: true, asset };
+      } catch {
+        return { ok: false, error: 'database_unavailable' };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.locationList,
+    async (): Promise<LocationListResult> => {
+      if (!requireAuth()) {
+        return { ok: false, error: 'unauthorized' };
+      }
+
+      try {
+        const locations = await listLocationNames();
+        return { ok: true, locations };
+      } catch {
+        return { ok: false, error: 'database_unavailable' };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.locationAdd,
+    async (_event, payload: unknown): Promise<LocationListResult> => {
+      if (!requireAuth()) {
+        return { ok: false, error: 'unauthorized' };
+      }
+
+      const name = parseLocationName(payload);
+      if (!name) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      try {
+        const locations = await addLocationName(name);
+        await writeAudit('location_add', name);
+        return { ok: true, locations };
       } catch {
         return { ok: false, error: 'database_unavailable' };
       }

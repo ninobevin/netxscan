@@ -65,8 +65,14 @@ export function parseAssetInput(payload: unknown): AssetInput | null {
   const ipAddress = optionalText(record.ipAddress, 45);
   const macAddress = optionalText(record.macAddress, 32);
   const notes = optionalText(record.notes, MAX_NOTES);
+  const location = optionalText(record.location, 128);
 
-  if (ipAddress === undefined || macAddress === undefined || notes === undefined) {
+  if (
+    ipAddress === undefined ||
+    macAddress === undefined ||
+    notes === undefined ||
+    location === undefined
+  ) {
     return null;
   }
 
@@ -84,6 +90,7 @@ export function parseAssetInput(payload: unknown): AssetInput | null {
     macAddress,
     assetType: record.assetType,
     notes,
+    location,
   };
 }
 
@@ -96,4 +103,20 @@ export function parseAssetId(payload: unknown): string | null {
   }
 
   return id;
+}
+
+export function parseLocationName(payload: unknown): string | null {
+  const record = asRecord(payload);
+  const name =
+    typeof record?.name === 'string' ? record.name.trim() : '';
+
+  if (name.length < 1 || name.length > 128) {
+    return null;
+  }
+
+  if (!/^[A-Za-z0-9][A-Za-z0-9 .,_-]{0,127}$/.test(name)) {
+    return null;
+  }
+
+  return name;
 }

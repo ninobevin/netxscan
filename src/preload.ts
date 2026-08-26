@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { ipcChannels } from './shared/ipc-channels';
+import type { Asset } from './shared/asset-types';
 import type { NetXScanApi } from './shared/preload-api';
 
 const api: NetXScanApi = Object.freeze({
@@ -13,14 +14,24 @@ const api: NetXScanApi = Object.freeze({
   listAssets: (includeArchived = false) =>
     ipcRenderer.invoke(ipcChannels.assetList, { includeArchived }),
   getAsset: (id) => ipcRenderer.invoke(ipcChannels.assetGet, { id }),
-  createAsset: (input) => ipcRenderer.invoke(ipcChannels.assetCreate, input),
   updateAsset: (id, input) =>
     ipcRenderer.invoke(ipcChannels.assetUpdate, { id, ...input }),
-  archiveAsset: (id) => ipcRenderer.invoke(ipcChannels.assetArchive, { id }),
+  deleteAsset: (id) => ipcRenderer.invoke(ipcChannels.assetDelete, { id }),
+  listLocations: () => ipcRenderer.invoke(ipcChannels.locationList),
+  addLocation: (name) => ipcRenderer.invoke(ipcChannels.locationAdd, { name }),
   getAuthorizedRanges: () =>
     ipcRenderer.invoke(ipcChannels.scanAuthorizedRanges),
   runAuthorizedScan: (target) =>
     ipcRenderer.invoke(ipcChannels.scanRun, { target }),
+  onScanHostFound: (listener) => {
+    const wrapped = (_event: unknown, asset: Asset) => {
+      listener(asset);
+    };
+    ipcRenderer.on(ipcChannels.scanHostFound, wrapped);
+    return () => {
+      ipcRenderer.removeListener(ipcChannels.scanHostFound, wrapped);
+    };
+  },
   getCompanyProfile: () => ipcRenderer.invoke(ipcChannels.companyGet),
   saveCompanyName: (companyName) =>
     ipcRenderer.invoke(ipcChannels.companySaveName, { companyName }),

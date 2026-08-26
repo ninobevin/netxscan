@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CompanyProfile } from '../shared/company-types';
 import type { PublicSession } from '../shared/auth-types';
-import { AssetInventory } from './AssetInventory';
+import { DiscoveryAssets } from './DiscoveryAssets';
 import { AuditPanel } from './AuditPanel';
-import { AuthorizedScanPanel } from './AuthorizedScanPanel';
 import { CompanyProfilePanel } from './CompanyProfilePanel';
 import { LoadingScreen } from './LoadingScreen';
 import { LoginView } from './LoginView';
 import { PageLayout } from './PageLayout';
 
-type AppView = 'inventory' | 'discovery' | 'company' | 'audit';
+type AppView = 'discovery' | 'company' | 'audit';
 
 type ShellProps = {
   session: PublicSession;
@@ -21,16 +20,14 @@ type ShellProps = {
 const MENU_LOAD_MS = 450;
 
 const NAV_ITEMS: Array<{ id: AppView; label: string }> = [
-  { id: 'inventory', label: 'Inventory' },
-  { id: 'discovery', label: 'Ping' },
+  { id: 'discovery', label: 'Discovery and Asset' },
   { id: 'audit', label: 'Audit' },
   { id: 'company', label: 'Settings' },
 ];
 
 function Shell({ session, onLoggedOut, profile, onProfileUpdated }: ShellProps) {
-  const [view, setView] = useState<AppView>('inventory');
-  const [activeNav, setActiveNav] = useState<AppView>('inventory');
-  const [inventoryKey, setInventoryKey] = useState(0);
+  const [view, setView] = useState<AppView>('discovery');
+  const [activeNav, setActiveNav] = useState<AppView>('discovery');
   const [menuLoading, setMenuLoading] = useState(false);
   const loadTimer = useRef<number | null>(null);
 
@@ -45,10 +42,6 @@ function Shell({ session, onLoggedOut, profile, onProfileUpdated }: ShellProps) 
   const onLogout = async () => {
     await window.netxscan.logout();
     onLoggedOut();
-  };
-
-  const refreshInventory = () => {
-    setInventoryKey((value) => value + 1);
   };
 
   const changeView = (next: AppView) => {
@@ -92,13 +85,8 @@ function Shell({ session, onLoggedOut, profile, onProfileUpdated }: ShellProps) 
       </nav>
       {menuLoading ? (
         <LoadingScreen />
-      ) : view === 'inventory' ? (
-        <AssetInventory refreshKey={inventoryKey} />
       ) : view === 'discovery' ? (
-        <AuthorizedScanPanel
-          canScan={session.role === 'administrator'}
-          onInventoryChanged={refreshInventory}
-        />
+        <DiscoveryAssets canScan={session.role === 'administrator'} />
       ) : view === 'company' ? (
         profile ? (
           <CompanyProfilePanel
