@@ -419,6 +419,32 @@ const migrations: Migration[] = [
       )
     `,
   },
+  {
+    name: '020_asset_winrm_manageable',
+    mysql: `
+      ALTER TABLE assets
+        ADD COLUMN winrm_manageable TINYINT NULL,
+        ADD COLUMN winrm_checked_at DATETIME NULL,
+        ADD COLUMN winrm_detail VARCHAR(500) NULL
+    `,
+    sqlite: `
+      ALTER TABLE assets ADD COLUMN winrm_manageable INTEGER
+    `,
+  },
+  {
+    name: '021_asset_winrm_checked_at',
+    mysql: null,
+    sqlite: `
+      ALTER TABLE assets ADD COLUMN winrm_checked_at TEXT
+    `,
+  },
+  {
+    name: '022_asset_winrm_detail',
+    mysql: null,
+    sqlite: `
+      ALTER TABLE assets ADD COLUMN winrm_detail TEXT
+    `,
+  },
 ];
 
 export async function runMigrations(db: DbClient): Promise<void> {

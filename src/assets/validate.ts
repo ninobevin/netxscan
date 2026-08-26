@@ -105,6 +105,33 @@ export function parseAssetId(payload: unknown): string | null {
   return id;
 }
 
+export function parseAssetIds(payload: unknown): string[] | null {
+  const record = asRecord(payload);
+  const ids = record?.ids;
+
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 200) {
+    return null;
+  }
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+
+  for (const id of ids) {
+    if (typeof id !== 'string' || id.length !== 36) {
+      return null;
+    }
+
+    if (seen.has(id)) {
+      continue;
+    }
+
+    seen.add(id);
+    unique.push(id);
+  }
+
+  return unique;
+}
+
 export function parseLocationName(payload: unknown): string | null {
   const record = asRecord(payload);
   const name =

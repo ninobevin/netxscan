@@ -1,5 +1,6 @@
 import type {
   Asset,
+  AssetDeleteManyResult,
   AssetInput,
   AssetItemResult,
   AssetListResult,
@@ -13,6 +14,11 @@ import type {
 } from './scan-types';
 import type { CompanyProfileResult } from './company-types';
 import type { AuditListResult } from './audit-types';
+import type {
+  WinrmAction,
+  WinrmBatchResult,
+  WinrmProgress,
+} from './winrm-types';
 
 export type NetXScanApi = {
   ping: () => Promise<string>;
@@ -25,6 +31,12 @@ export type NetXScanApi = {
   getAsset: (id: string) => Promise<AssetItemResult>;
   updateAsset: (id: string, input: AssetInput) => Promise<AssetItemResult>;
   deleteAsset: (id: string) => Promise<AssetItemResult>;
+  deleteAssets: (ids: string[]) => Promise<AssetDeleteManyResult>;
+  runWinrmBatch: (
+    action: WinrmAction,
+    ids: string[],
+  ) => Promise<WinrmBatchResult>;
+  onWinrmProgress: (listener: (event: WinrmProgress) => void) => () => void;
   listLocations: () => Promise<LocationListResult>;
   addLocation: (name: string) => Promise<LocationListResult>;
   getAuthorizedRanges: () => Promise<AuthorizedRangesResult>;

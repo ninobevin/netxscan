@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { ipcChannels } from './shared/ipc-channels';
 import type { Asset } from './shared/asset-types';
 import type { NetXScanApi } from './shared/preload-api';
+import type { WinrmProgress } from './shared/winrm-types';
 
 const api: NetXScanApi = Object.freeze({
   ping: () => ipcRenderer.invoke(ipcChannels.ping),
@@ -17,6 +18,19 @@ const api: NetXScanApi = Object.freeze({
   updateAsset: (id, input) =>
     ipcRenderer.invoke(ipcChannels.assetUpdate, { id, ...input }),
   deleteAsset: (id) => ipcRenderer.invoke(ipcChannels.assetDelete, { id }),
+  deleteAssets: (ids) =>
+    ipcRenderer.invoke(ipcChannels.assetDeleteMany, { ids }),
+  runWinrmBatch: (action, ids) =>
+    ipcRenderer.invoke(ipcChannels.winrmBatch, { action, ids }),
+  onWinrmProgress: (listener) => {
+    const wrapped = (_event: unknown, progress: WinrmProgress) => {
+      listener(progress);
+    };
+    ipcRenderer.on(ipcChannels.winrmProgress, wrapped);
+    return () => {
+      ipcRenderer.removeListener(ipcChannels.winrmProgress, wrapped);
+    };
+  },
   listLocations: () => ipcRenderer.invoke(ipcChannels.locationList),
   addLocation: (name) => ipcRenderer.invoke(ipcChannels.locationAdd, { name }),
   getAuthorizedRanges: () =>

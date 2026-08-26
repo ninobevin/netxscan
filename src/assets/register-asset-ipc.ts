@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import { requireSession } from '../auth/session';
 import { writeAudit } from '../audit/repository';
 import type {
+  AssetDeleteManyResult,
   AssetItemResult,
   AssetListResult,
   LocationListResult,
@@ -17,6 +18,7 @@ import {
 } from './repository';
 import {
   parseAssetId,
+  parseAssetIds,
   parseAssetInput,
   parseLocationName,
 } from './validate';
@@ -133,6 +135,40 @@ export function registerAssetIpc(): void {
           `${asset.hostname}${asset.ipAddress ? ` (${asset.ipAddress})` : ''}`,
         );
         return { ok: true, asset };
+      } catch {
+        return { ok: false, error: 'database_unavailable' };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.assetDeleteMany,
+    async (_event, payload: unknown): Promise<AssetDeleteManyResult> => {
+      if (!requireAuth()) {
+        return { ok: false, error: 'unauthorized' };
+      }
+
+      const ids = parseAssetIds(payload);
+      if (!ids) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      try {
+        const deletedIds: string[] = [];
+        for (const id of ids) {
+          const asset = await deleteAsset(id);
+          if (!asset) {
+            continue;
+          }
+
+          await writeAudit(
+            'asset_delete',
+            `${asset.hostname}${asset.ipAddress ? ` (${asset.ipAddress})` : ''}`,
+          );
+          deletedIds.push(id);
+        }
+
+        return { ok: true, deletedIds };
       } catch {
         return { ok: false, error: 'database_unavailable' };
       }

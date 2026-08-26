@@ -1,11 +1,16 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   ASSET_TYPES,
   type Asset,
   type AssetInput,
   type AssetType,
 } from '../shared/asset-types';
+import type { WinrmAction } from '../shared/winrm-types';
 import { BusyButton } from './BusyButton';
+
+const PAGE_SIZE_MIN = 5;
+const PAGE_SIZE_MAX = 200;
+const PAGE_SIZE_DEFAULT = 25;
 
 function typeLabel(type: AssetType): string {
   if (type === 'virtual_server') {
@@ -21,7 +26,7 @@ function typeLabel(type: AssetType): string {
 
 function errorText(error: string): string {
   if (error === 'forbidden') {
-    return 'Only administrators can scan authorized ranges.';
+    return 'Only administrators can scan authorized ranges or change WinRM.';
   }
 
   if (error === 'not_authorized_range') {
@@ -30,6 +35,14 @@ function errorText(error: string): string {
 
   if (error === 'scan_in_progress') {
     return 'A scan is already running.';
+  }
+
+  if (error === 'winrm_in_progress') {
+    return 'A WinRM batch is already running.';
+  }
+
+  if (error === 'unavailable') {
+    return 'WinRM actions are only available on Windows.';
   }
 
   if (error === 'invalid_input') {
@@ -60,6 +73,34 @@ function mergeAsset(list: Asset[], asset: Asset): Asset[] {
   return next;
 }
 
+function clampPageSize(value: number): number {
+  if (!Number.isFinite(value)) {
+    return PAGE_SIZE_DEFAULT;
+  }
+
+  return Math.min(PAGE_SIZE_MAX, Math.max(PAGE_SIZE_MIN, Math.round(value)));
+}
+
+function manageableLabel(asset: Asset): string {
+  if (asset.winrmManageable === true) {
+    return 'Yes';
+  }
+
+  if (asset.winrmManageable === false) {
+    return 'No';
+  }
+
+  return '—';
+}
+
+function isSuccessMessage(message: string): boolean {
+  return (
+    message.startsWith('Scan finished') ||
+    message.startsWith('Deleted') ||
+    message.startsWith('WinRM')
+  );
+}
+
 type DiscoveryAssetsProps = {
   canScan: boolean;
 };
@@ -75,6 +116,13 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
   const [editing, setEditing] = useState<Asset | null>(null);
   const [form, setForm] = useState<AssetInput | null>(null);
   const [newLocation, setNewLocation] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
+  const [pageSizeField, setPageSizeField] = useState(String(PAGE_SIZE_DEFAULT));
+  const [winrmActiveId, setWinrmActiveId] = useState<string | null>(null);
+  const [winrmBusy, setWinrmBusy] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const loadAssets = async () => {
     const result = await window.netxscan.listAssets(false);
@@ -112,6 +160,75 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
     });
   }, []);
 
+  useEffect(() => {
+    return window.netxscan.onWinrmProgress((progress) => {
+      if (progress.type === 'running') {
+        setWinrmActiveId(progress.assetId);
+        return;
+      }
+
+      setWinrmActiveId(null);
+      if (progress.asset) {
+        setAssets((current) => mergeAsset(current, progress.asset));
+      }
+    });
+  }, []);
+
+  const pageCount = Math.max(1, Math.ceil(assets.length / pageSize));
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
+
+  const pageAssets = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return assets.slice(start, start + pageSize);
+  }, [assets, page, pageSize]);
+
+  const pageIds = pageAssets.map((asset) => asset.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const somePageSelected = pageIds.some((id) => selected.has(id));
+  const selectedCount = selected.size;
+  const batchLocked = scanning || winrmBusy || bulkDeleting;
+
+  const applyPageSize = () => {
+    const next = clampPageSize(Number(pageSizeField));
+    setPageSize(next);
+    setPageSizeField(String(next));
+    setPage(1);
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectPage = () => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (allPageSelected) {
+        for (const id of pageIds) {
+          next.delete(id);
+        }
+      } else {
+        for (const id of pageIds) {
+          next.add(id);
+        }
+      }
+      return next;
+    });
+  };
+
   const onScan = async (event: FormEvent) => {
     event.preventDefault();
     if (!canScan) {
@@ -146,10 +263,70 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
     }
 
     setAssets((current) => current.filter((item) => item.id !== id));
+    setSelected((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
     if (editing?.id === id) {
       setEditing(null);
       setForm(null);
     }
+  };
+
+  const onBulkDelete = async () => {
+    const ids = [...selected];
+    if (ids.length === 0 || batchLocked) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    setMessage(null);
+    const result = await window.netxscan.deleteAssets(ids);
+    setBulkDeleting(false);
+
+    if (!result.ok) {
+      setMessage(errorText(result.error));
+      return;
+    }
+
+    const removed = new Set(result.deletedIds);
+    setAssets((current) => current.filter((item) => !removed.has(item.id)));
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const id of removed) {
+        next.delete(id);
+      }
+      return next;
+    });
+    if (editing && removed.has(editing.id)) {
+      setEditing(null);
+      setForm(null);
+    }
+    setMessage(`Deleted ${result.deletedIds.length} asset(s).`);
+  };
+
+  const onWinrm = async (action: WinrmAction) => {
+    const ids = [...selected];
+    if (!canScan || ids.length === 0 || batchLocked) {
+      return;
+    }
+
+    setWinrmBusy(true);
+    setMessage(null);
+    const result = await window.netxscan.runWinrmBatch(action, ids);
+    setWinrmBusy(false);
+    setWinrmActiveId(null);
+
+    if (!result.ok) {
+      setMessage(errorText(result.error));
+      return;
+    }
+
+    setMessage(
+      `WinRM ${action === 'enable' ? 'enable' : 'disable'} finished for ${result.processed} host(s). Manageable hosts are saved for later management and scans.`,
+    );
+    await loadAssets();
   };
 
   const openEdit = (asset: Asset) => {
@@ -241,13 +418,13 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
         </form>
         {!canScan ? (
           <p className="text-sm text-health-subtle">
-            Sign in as administrator to run a scan.
+            Sign in as administrator to run a scan or enable WinRM.
           </p>
         ) : null}
         {message ? (
           <p
             className={
-              message.startsWith('Scan finished')
+              isSuccessMessage(message)
                 ? 'text-sm text-health-accent'
                 : 'text-sm text-health-danger'
             }
@@ -264,47 +441,171 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
             No assets yet. Run a scan to add hosts from the network.
           </p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-health-border text-health-subtle">
-                <th className="py-2 pr-3 font-medium">Hostname</th>
-                <th className="py-2 pr-3 font-medium">IP</th>
-                <th className="py-2 pr-3 font-medium">Location</th>
-                <th className="py-2 pr-3 font-medium">Type</th>
-                <th className="py-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.map((asset) => (
-                <tr key={asset.id} className="border-b border-health-border">
-                  <td className="py-2 pr-3">{asset.hostname}</td>
-                  <td className="py-2 pr-3">{asset.ipAddress ?? '—'}</td>
-                  <td className="py-2 pr-3">{asset.location ?? '—'}</td>
-                  <td className="py-2 pr-3">{typeLabel(asset.assetType)}</td>
-                  <td className="py-2">
-                    <button
-                      type="button"
-                      className="mr-3 text-health-accent"
-                      onClick={() => openEdit(asset)}
-                    >
-                      Edit
-                    </button>
-                    <BusyButton
-                      className="text-health-danger"
-                      disabled={busyId !== null && busyId !== asset.id}
-                      busy={busyId === asset.id}
-                      busyLabel="Deleting…"
-                      onClick={() => {
-                        void onDelete(asset.id);
+          <>
+            <div className="mb-3 flex flex-wrap items-end gap-2">
+              <BusyButton
+                className="app-btn-secondary text-health-danger"
+                disabled={selectedCount === 0 || batchLocked}
+                busy={bulkDeleting}
+                busyLabel="Deleting…"
+                onClick={() => {
+                  void onBulkDelete();
+                }}
+              >
+                Delete
+              </BusyButton>
+              <BusyButton
+                className="app-btn-secondary"
+                disabled={!canScan || selectedCount === 0 || batchLocked}
+                busy={winrmBusy}
+                busyLabel="Working…"
+                onClick={() => {
+                  void onWinrm('enable');
+                }}
+              >
+                Enable WinRM
+              </BusyButton>
+              <BusyButton
+                className="app-btn-secondary"
+                disabled={!canScan || selectedCount === 0 || batchLocked}
+                busy={false}
+                busyLabel="Working…"
+                onClick={() => {
+                  void onWinrm('disable');
+                }}
+              >
+                Disable WinRM
+              </BusyButton>
+              <span className="text-sm text-health-subtle">
+                {selectedCount} selected
+              </span>
+              <label className="ml-auto grid w-28 gap-1 text-sm">
+                <span className="font-medium text-health-subtle">Page size</span>
+                <input
+                  type="number"
+                  min={PAGE_SIZE_MIN}
+                  max={PAGE_SIZE_MAX}
+                  value={pageSizeField}
+                  onChange={(event) => setPageSizeField(event.target.value)}
+                  onBlur={applyPageSize}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      applyPageSize();
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-health-border text-health-subtle">
+                  <th className="py-2 pr-3 font-medium">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all on this page"
+                      checked={allPageSelected}
+                      ref={(element) => {
+                        if (element) {
+                          element.indeterminate =
+                            somePageSelected && !allPageSelected;
+                        }
                       }}
-                    >
-                      Delete
-                    </BusyButton>
-                  </td>
+                      onChange={toggleSelectPage}
+                    />
+                  </th>
+                  <th className="py-2 pr-3 font-medium">Hostname</th>
+                  <th className="py-2 pr-3 font-medium">IP</th>
+                  <th className="py-2 pr-3 font-medium">Location</th>
+                  <th className="py-2 pr-3 font-medium">Type</th>
+                  <th className="py-2 pr-3 font-medium">Manageable</th>
+                  <th className="py-2 font-medium">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pageAssets.map((asset) => {
+                  const rowBusy = winrmActiveId === asset.id;
+                  return (
+                    <tr key={asset.id} className="border-b border-health-border">
+                      <td className="py-2 pr-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${asset.hostname}`}
+                          checked={selected.has(asset.id)}
+                          onChange={() => toggleSelected(asset.id)}
+                        />
+                      </td>
+                      <td className="py-2 pr-3">
+                        {rowBusy ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="app-spinner-sm" aria-hidden="true" />
+                            {asset.hostname}
+                          </span>
+                        ) : (
+                          asset.hostname
+                        )}
+                      </td>
+                      <td className="py-2 pr-3">{asset.ipAddress ?? '—'}</td>
+                      <td className="py-2 pr-3">{asset.location ?? '—'}</td>
+                      <td className="py-2 pr-3">{typeLabel(asset.assetType)}</td>
+                      <td
+                        className="py-2 pr-3"
+                        title={asset.winrmDetail ?? undefined}
+                      >
+                        {rowBusy ? 'Checking…' : manageableLabel(asset)}
+                      </td>
+                      <td className="py-2">
+                        <button
+                          type="button"
+                          className="mr-3 text-health-accent"
+                          onClick={() => openEdit(asset)}
+                        >
+                          Edit
+                        </button>
+                        <BusyButton
+                          className="text-health-danger"
+                          disabled={
+                            batchLocked ||
+                            (busyId !== null && busyId !== asset.id)
+                          }
+                          busy={busyId === asset.id}
+                          busyLabel="Deleting…"
+                          onClick={() => {
+                            void onDelete(asset.id);
+                          }}
+                        >
+                          Delete
+                        </BusyButton>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+              <button
+                type="button"
+                className="app-btn-secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Previous
+              </button>
+              <span className="text-health-subtle">
+                Page {page} of {pageCount} ({assets.length} assets)
+              </span>
+              <button
+                type="button"
+                className="app-btn-secondary"
+                disabled={page >= pageCount}
+                onClick={() =>
+                  setPage((current) => Math.min(pageCount, current + 1))
+                }
+              >
+                Next
+              </button>
+            </div>
+          </>
         )}
       </section>
 

@@ -26,10 +26,17 @@ export type Asset = {
   notes: string | null;
   location: string | null;
   archivedAt: string | null;
+  winrmManageable: boolean | null;
+  winrmCheckedAt: string | null;
+  winrmDetail: string | null;
   createdAt: string;
   updatedAt: string;
   services: AssetService[];
 };
+
+export type AssetDeleteManyResult =
+  | { ok: true; deletedIds: string[] }
+  | { ok: false; error: AssetMutationError };
 
 export type AssetInput = {
   hostname: string;

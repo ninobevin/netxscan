@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/client';
-import type { Asset, AssetInput, AssetService } from '../shared/asset-types';
-import type { AssetType } from '../shared/asset-types';
+import type {
+  Asset,
+  AssetInput,
+  AssetService,
+  AssetType,
+} from '../shared/asset-types';
 import type { ScanHost } from '../shared/scan-types';
 import { parseDnsHostname } from '../nmap/hostnames';
 
@@ -14,9 +18,20 @@ type AssetRow = {
   notes: string | null;
   location: string | null;
   archived_at: Date | string | null;
+  winrm_manageable: number | boolean | null;
+  winrm_checked_at: Date | string | null;
+  winrm_detail: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 };
+
+function asBool(value: number | boolean | null | undefined): boolean | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return Number(value) === 1 || value === true;
+}
 
 function asIso(value: Date | string | null): string | null {
   if (value === null) {
@@ -40,6 +55,9 @@ function toAsset(row: AssetRow): Asset {
     notes: row.notes,
     location: row.location,
     archivedAt: asIso(row.archived_at),
+    winrmManageable: asBool(row.winrm_manageable),
+    winrmCheckedAt: asIso(row.winrm_checked_at),
+    winrmDetail: row.winrm_detail,
     createdAt: asIso(row.created_at) ?? '',
     updatedAt: asIso(row.updated_at) ?? '',
     services: [],
@@ -47,7 +65,8 @@ function toAsset(row: AssetRow): Asset {
 }
 
 const SELECT_FIELDS = `id, hostname, ip_address, mac_address, asset_type, notes,
-  location, archived_at, created_at, updated_at`;
+  location, archived_at, winrm_manageable, winrm_checked_at, winrm_detail,
+  created_at, updated_at`;
 
 export async function listAssets(includeArchived: boolean): Promise<Asset[]> {
   const db = getDb();
@@ -102,6 +121,34 @@ export async function updateAsset(
   );
   const header = result as { affectedRows?: number };
 
+  if (!header.affectedRows) {
+    return undefined;
+  }
+
+  return getAssetById(id);
+}
+
+export async function setWinrmManageable(
+  id: string,
+  manageable: boolean,
+  detail: string,
+): Promise<Asset | undefined> {
+  const db = getDb();
+  const trimmed = detail.trim().slice(0, 500);
+  const [result] = await db.query(
+    `UPDATE assets
+     SET winrm_manageable = :manageable,
+         winrm_checked_at = :checkedAt,
+         winrm_detail = :detail
+     WHERE id = :id`,
+    {
+      id,
+      manageable: manageable ? 1 : 0,
+      checkedAt: new Date().toISOString(),
+      detail: trimmed || null,
+    },
+  );
+  const header = result as { affectedRows?: number };
   if (!header.affectedRows) {
     return undefined;
   }

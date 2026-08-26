@@ -22,5 +22,9 @@ export function parseDnsHostname(value: unknown): string | null {
     return null;
   }
 
+  if (name.includes("'") || name.includes('"') || name.includes('\\')) {
+    return null;
+  }
+
   return name;
 }
