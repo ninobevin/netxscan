@@ -1,5 +1,3 @@
-import type { CveSeverity } from './cve-types';
-
 export type TlsFacts = {
   portOpen: boolean;
   tlsVersions: string[];
@@ -37,16 +35,6 @@ export type ServiceAssessment = {
   createdAt: string;
 };
 
-export type AssessmentCorrelation = {
-  catalogImported: number;
-  catalogSource: 'online' | 'local';
-  matches: Array<{
-    cveId: string;
-    title: string;
-    severity: CveSeverity;
-  }>;
-};
-
 export type AssessmentError =
   | 'unauthorized'
   | 'forbidden'
@@ -60,5 +48,5 @@ export type AssessmentError =
   | 'database_unavailable';
 
 export type AssessmentResult =
-  | { ok: true; assessment: ServiceAssessment; correlation?: AssessmentCorrelation }
+  | { ok: true; assessment: ServiceAssessment }
   | { ok: false; error: AssessmentError };

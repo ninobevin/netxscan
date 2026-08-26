@@ -11,19 +11,11 @@ import {
   runAuthorizedServiceAssessment,
 } from '../nmap/run-scan';
 import { endScan, tryStartScan } from '../nmap/scan-lock';
-import type {
-  AssessmentCorrelation,
-  AssessmentResult,
-} from '../shared/assessment-types';
+import type { AssessmentResult } from '../shared/assessment-types';
 import { ipcChannels } from '../shared/ipc-channels';
 import { parseNmapXml } from '../nmap/parse-xml';
 import { writeAudit } from '../audit/repository';
-import { listAllCves } from '../cve/repository';
-import { ensureCveCatalogForAssessment } from '../cve/refresh-catalog';
-import { correlateAssets } from '../correlate/engine';
-import { upsertFindingsFromMatches } from '../findings/repository';
-import { getLatestWindowsAssessment } from '../windows/repository';
-import { evaluateMisconfigurations, nistQualitative } from './misconfig';
+import { evaluateMisconfigurations } from './misconfig';
 import {
   assessmentNotes,
   parseSmbFacts,
@@ -82,13 +74,11 @@ export function registerAssessIpc(): void {
       }
 
       let ipAddress: string | null = null;
-      let hostname = '';
       let services: AssetService[] = [];
 
       try {
         const asset = await getAssetById(assetId);
         ipAddress = asset?.ipAddress ?? null;
-        hostname = asset?.hostname ?? '';
         services = asset?.services ?? [];
 
         if (!asset) {
@@ -145,62 +135,11 @@ export function registerAssessIpc(): void {
           openPorts,
           issues,
         );
-        await upsertFindingsFromMatches(
-          issues.map((issue) => ({
-            assetId,
-            hostname,
-            ipAddress,
-            cveId: issue.id,
-            title: issue.title,
-            severity: issue.severity,
-            evidence: issue.evidence,
-            recommendation: issue.recommendation,
-            description: `${issue.description} NIST qualitative rating: ${nistQualitative(issue.severity)}. Risk score ${issue.riskScore}.`,
-          })),
-          'assessment',
-        );
-
-        let correlation: AssessmentCorrelation = {
-          catalogImported: 0,
-          catalogSource: 'local',
-          matches: [],
-        };
-        try {
-          const catalog = await ensureCveCatalogForAssessment();
-          const cves = await listAllCves();
-          const windows = await getLatestWindowsAssessment(assetId);
-          const matches = correlateAssets(cves, [
-            {
-              assetId,
-              hostname,
-              ipAddress,
-              services,
-              tls,
-              smb,
-              windows: windows?.facts ?? null,
-            },
-          ]);
-          if (matches.length > 0) {
-            await upsertFindingsFromMatches(matches, 'correlation');
-          }
-          correlation = {
-            catalogImported: catalog.catalogImported,
-            catalogSource: catalog.catalogSource,
-            matches: matches.map((match) => ({
-              cveId: match.cveId,
-              title: match.title,
-              severity: match.severity,
-            })),
-          };
-        } catch {
-          // Assessment facts and NX-* findings are already saved.
-        }
-
         await writeAudit(
           'assess_services',
-          `${ipAddress} · ${issues.length} issue(s) · ${correlation.matches.length} CVE match(es)`,
+          `${ipAddress} · ${issues.length} issue(s)`,
         );
-        return { ok: true, assessment, correlation };
+        return { ok: true, assessment };
       } catch (error) {
         if (error instanceof Error && error.message === 'timeout') {
           return { ok: false, error: 'timeout' };

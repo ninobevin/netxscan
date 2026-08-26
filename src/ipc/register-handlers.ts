@@ -8,15 +8,8 @@ import { initializeDatabase } from '../db/client';
 import { loadDatabaseConfig } from '../db/load-config';
 import { runMigrations } from '../db/migrate';
 import { registerNmapIpc } from '../nmap/register-nmap-ipc';
-import { registerWindowsIpc } from '../windows/register-windows-ipc';
-import { registerCredentialsIpc } from '../credentials/register-credentials-ipc';
-import { registerCveIpc } from '../cve/register-cve-ipc';
-import { registerCorrelateIpc } from '../correlate/register-correlate-ipc';
-import { registerFindingsIpc } from '../findings/register-findings-ipc';
-import { registerDashboardIpc } from '../dashboard/register-dashboard-ipc';
 import { registerCompanyIpc } from '../company/register-company-ipc';
 import { registerAuditIpc } from '../audit/register-audit-ipc';
-import { registerReportsIpc } from '../reports/register-reports-ipc';
 import type { DatabaseStatus } from '../shared/database-status';
 import { classifyDatabaseError } from '../shared/database-status';
 import { ipcChannels } from '../shared/ipc-channels';
@@ -28,15 +21,8 @@ export async function registerIpcHandlers(): Promise<void> {
   registerAssetIpc();
   registerNmapIpc();
   registerAssessIpc();
-  registerWindowsIpc();
-  registerCredentialsIpc();
-  registerCveIpc();
-  registerCorrelateIpc();
-  registerFindingsIpc();
-  registerDashboardIpc();
   registerCompanyIpc();
   registerAuditIpc();
-  registerReportsIpc();
 
   ipcMain.handle(ipcChannels.getDatabaseStatus, () => databaseStatus);
 

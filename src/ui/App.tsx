@@ -5,29 +5,11 @@ import { AssetInventory } from './AssetInventory';
 import { AuditPanel } from './AuditPanel';
 import { AuthorizedScanPanel } from './AuthorizedScanPanel';
 import { CompanyProfilePanel } from './CompanyProfilePanel';
-import { CorrelationPanel } from './CorrelationPanel';
-import { CveCatalog } from './CveCatalog';
-import { CredentialsPanel } from './CredentialsPanel';
-import { Dashboard } from './Dashboard';
-import { FindingsPanel } from './FindingsPanel';
 import { LoadingScreen } from './LoadingScreen';
 import { LoginView } from './LoginView';
 import { PageLayout } from './PageLayout';
-import { ReportsPanel } from './ReportsPanel';
-import { WindowsPage } from './WindowsPage';
 
-type AppView =
-  | 'dashboard'
-  | 'inventory'
-  | 'discovery'
-  | 'windows'
-  | 'credentials'
-  | 'cves'
-  | 'correlation'
-  | 'findings'
-  | 'company'
-  | 'audit'
-  | 'reports';
+type AppView = 'inventory' | 'discovery' | 'company' | 'audit';
 
 type ShellProps = {
   session: PublicSession;
@@ -39,22 +21,15 @@ type ShellProps = {
 const MENU_LOAD_MS = 450;
 
 const NAV_ITEMS: Array<{ id: AppView; label: string }> = [
-  { id: 'dashboard', label: 'Dashboard' },
   { id: 'inventory', label: 'Inventory' },
   { id: 'discovery', label: 'Discovery' },
-  { id: 'windows', label: 'Windows' },
-  { id: 'credentials', label: 'Credentials' },
-  { id: 'cves', label: 'CVE catalog' },
-  { id: 'correlation', label: 'Correlation' },
-  { id: 'findings', label: 'Findings' },
   { id: 'audit', label: 'Audit' },
-  { id: 'reports', label: 'Reports' },
   { id: 'company', label: 'Settings' },
 ];
 
 function Shell({ session, onLoggedOut, profile, onProfileUpdated }: ShellProps) {
-  const [view, setView] = useState<AppView>('dashboard');
-  const [activeNav, setActiveNav] = useState<AppView>('dashboard');
+  const [view, setView] = useState<AppView>('inventory');
+  const [activeNav, setActiveNav] = useState<AppView>('inventory');
   const [inventoryKey, setInventoryKey] = useState(0);
   const [menuLoading, setMenuLoading] = useState(false);
   const loadTimer = useRef<number | null>(null);
@@ -117,8 +92,6 @@ function Shell({ session, onLoggedOut, profile, onProfileUpdated }: ShellProps) 
       </nav>
       {menuLoading ? (
         <LoadingScreen />
-      ) : view === 'dashboard' ? (
-        <Dashboard />
       ) : view === 'inventory' ? (
         <AssetInventory
           refreshKey={inventoryKey}
@@ -129,20 +102,6 @@ function Shell({ session, onLoggedOut, profile, onProfileUpdated }: ShellProps) 
           canScan={session.role === 'administrator'}
           onInventoryChanged={refreshInventory}
         />
-      ) : view === 'windows' ? (
-        <WindowsPage
-          canRun={session.role === 'administrator'}
-          refreshKey={inventoryKey}
-          onInventoryChanged={refreshInventory}
-        />
-      ) : view === 'credentials' ? (
-        <CredentialsPanel canEdit={session.role === 'administrator'} />
-      ) : view === 'cves' ? (
-        <CveCatalog canImport={session.role === 'administrator'} />
-      ) : view === 'correlation' ? (
-        <CorrelationPanel canRun={session.role === 'administrator'} />
-      ) : view === 'findings' ? (
-        <FindingsPanel canCreate={session.role === 'administrator'} />
       ) : view === 'company' ? (
         profile ? (
           <CompanyProfilePanel
@@ -153,10 +112,8 @@ function Shell({ session, onLoggedOut, profile, onProfileUpdated }: ShellProps) 
         ) : (
           <p className="text-sm text-health-subtle">Loading company profile…</p>
         )
-      ) : view === 'audit' ? (
-        <AuditPanel />
       ) : (
-        <ReportsPanel />
+        <AuditPanel />
       )}
     </PageLayout>
   );

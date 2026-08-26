@@ -2,7 +2,7 @@ import { app, ipcMain } from 'electron';
 import path from 'node:path';
 import { upsertDiscoveredHost, upsertPingHost } from '../assets/repository';
 import { requireRole, requireSession } from '../auth/session';
-import { markAssetsSeenInScan, recordScan } from '../dashboard/repository';
+import { markAssetsSeenInScan, recordScan } from './scan-history';
 import { writeAudit } from '../audit/repository';
 import { ipcChannels } from '../shared/ipc-channels';
 import type {

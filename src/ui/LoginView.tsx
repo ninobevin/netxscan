@@ -70,7 +70,7 @@ export function LoginView({ onLoggedIn, profile }: LoginViewProps) {
         <p className="text-sm text-health-subtle">
           Authorized IT staff only. Use this system to manage{' '}
           {profile?.companyName ?? 'your organization'}
-          &apos;s network assets and vulnerability findings.
+          &apos;s network assets.
         </p>
         <label className="grid gap-1 text-sm">
           <span className="font-medium text-health-subtle">Username</span>

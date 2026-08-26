@@ -27,53 +27,12 @@ const api: NetXScanApi = Object.freeze({
     ipcRenderer.invoke(ipcChannels.assessRun, { id: assetId }),
   getLatestAssessment: (assetId) =>
     ipcRenderer.invoke(ipcChannels.assessLatest, { id: assetId }),
-  runLocalWindowsAssessment: () =>
-    ipcRenderer.invoke(ipcChannels.windowsAssessLocal),
-  runRemoteWindowsAssessment: (assetId, credentialId) =>
-    ipcRenderer.invoke(ipcChannels.windowsAssessRemote, {
-      id: assetId,
-      credentialId,
-    }),
-  uninstallWindowsSoftware: (assetId, key, mode, credentialId) =>
-    ipcRenderer.invoke(ipcChannels.windowsUninstallSoftware, {
-      id: assetId,
-      key,
-      mode,
-      credentialId,
-    }),
-  getLatestWindowsAssessment: (assetId) =>
-    ipcRenderer.invoke(ipcChannels.windowsLatest, { id: assetId }),
-  listCredentials: () => ipcRenderer.invoke(ipcChannels.credentialsList),
-  saveCredential: (label, username, password) =>
-    ipcRenderer.invoke(ipcChannels.credentialsSave, {
-      label,
-      username,
-      password,
-    }),
-  deleteCredential: (id) =>
-    ipcRenderer.invoke(ipcChannels.credentialsDelete, { id }),
-  listCves: (query = '') => ipcRenderer.invoke(ipcChannels.cveList, { query }),
-  importCveTestDataset: () => ipcRenderer.invoke(ipcChannels.cveImportTest),
-  importCveFile: () => ipcRenderer.invoke(ipcChannels.cveImportFile),
-  updateCvesOnline: () => ipcRenderer.invoke(ipcChannels.cveUpdateOnline),
-  getLatestCorrelation: () => ipcRenderer.invoke(ipcChannels.correlateLatest),
-  runCorrelation: () => ipcRenderer.invoke(ipcChannels.correlateRun),
-  listFindings: (status = 'all') =>
-    ipcRenderer.invoke(ipcChannels.findingsList, { status }),
-  syncFindings: () => ipcRenderer.invoke(ipcChannels.findingsSync),
-  updateFinding: (id, status, notes) =>
-    ipcRenderer.invoke(ipcChannels.findingsUpdate, { id, status, notes }),
-  getDashboard: () => ipcRenderer.invoke(ipcChannels.dashboardGet),
   getCompanyProfile: () => ipcRenderer.invoke(ipcChannels.companyGet),
   saveCompanyName: (companyName) =>
     ipcRenderer.invoke(ipcChannels.companySaveName, { companyName }),
   uploadCompanyLogo: () => ipcRenderer.invoke(ipcChannels.companyUploadLogo),
   removeCompanyLogo: () => ipcRenderer.invoke(ipcChannels.companyRemoveLogo),
   listAudit: (query = '') => ipcRenderer.invoke(ipcChannels.auditList, { query }),
-  previewReport: (kind) =>
-    ipcRenderer.invoke(ipcChannels.reportsPreview, { kind }),
-  exportReport: (kind) =>
-    ipcRenderer.invoke(ipcChannels.reportsExport, { kind }),
 });
 
 contextBridge.exposeInMainWorld('netxscan', api);
