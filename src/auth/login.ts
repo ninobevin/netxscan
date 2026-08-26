@@ -6,7 +6,7 @@ import { findUserByUsername, saveUser } from './user-store';
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
 const MAX_INPUT_LENGTH = 128;
-
+// check if the input is valid
 function parseLoginInput(
   payload: unknown,
 ): { username: string; password: string } | null {
