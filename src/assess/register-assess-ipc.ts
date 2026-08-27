@@ -377,15 +377,18 @@ async function executeRun(
       const findings = extractFindings(parsed.data);
       await replaceBaselineFindings(assetId, findings);
     }
-    const historyId = await insertHistory({
-      assetId,
-      moduleId,
-      kind,
-      paramsJson,
-      positive: parsed.positive,
-      summary: parsed.summary,
-      payloadJson,
-    });
+    let historyId = '';
+    if (module.slug === 'security_baseline') {
+      historyId = await insertHistory({
+        assetId,
+        moduleId,
+        kind,
+        paramsJson,
+        positive: parsed.positive,
+        summary: parsed.summary,
+        payloadJson,
+      });
+    }
     const action =
       kind === 'assess'
         ? 'assessment_run'
@@ -394,7 +397,7 @@ async function executeRun(
           : 'assessment_reverse';
     await writeAudit(
       action,
-      `${computer}${asset.ipAddress ? ` (${asset.ipAddress})` : ''} · ${module.name}${params.action ? ` · ${params.action}` : ''}`,
+      `${computer}${asset.ipAddress ? ` (${asset.ipAddress})` : ''} · ${module.name} · ${kind} · ${parsed.positive ? 'PASS' : 'FAIL'} · ${parsed.summary}${params.action ? ` · ${params.action}` : ''}`,
     );
     return {
       ok: true,

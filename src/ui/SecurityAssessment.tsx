@@ -703,7 +703,7 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
 
       <section className="app-card overflow-x-auto">
         <h3 className="mb-2 inline-flex items-center gap-2 font-semibold">
-          <History className="h-5 w-5" /> History
+          <History className="h-5 w-5" /> Baseline history
         </h3>
         <table className="w-full text-left text-sm">
           <thead>

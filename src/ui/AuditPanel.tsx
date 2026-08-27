@@ -42,8 +42,9 @@ export function AuditPanel() {
     <section className="app-card">
       <h2 className="text-lg font-semibold">Audit trail</h2>
       <p className="text-sm text-health-subtle">
-        Module 16 records important actions such as sign-in and pings.
-        Passwords are never stored in this log.
+        Module 16 records important actions such as sign-in, scans, software
+        uninstall, and other assessments. Baseline Get results stay on Security
+        assessment history. Passwords are never stored in this log.
       </p>
       <form
         className="flex flex-wrap items-end gap-3"

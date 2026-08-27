@@ -268,7 +268,7 @@ export async function listHistory(
             h.positive, h.summary, h.payload_json, h.created_at
      FROM assessment_history h
      JOIN assessment_modules m ON m.id = h.module_id
-     WHERE h.asset_id = :assetId
+     WHERE h.asset_id = :assetId AND m.slug = 'security_baseline'
      ORDER BY h.created_at DESC
      LIMIT 200`,
     { assetId },
