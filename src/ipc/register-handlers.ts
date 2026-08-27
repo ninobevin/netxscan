@@ -8,6 +8,8 @@ import { loadDatabaseConfig } from '../db/load-config';
 import { runMigrations } from '../db/migrate';
 import { registerNmapIpc } from '../nmap/register-nmap-ipc';
 import { registerWinrmIpc } from '../winrm/register-winrm-ipc';
+import { registerAssessIpc } from '../assess/register-assess-ipc';
+import { seedBuiltinModules } from '../assess/seed';
 import { registerCompanyIpc } from '../company/register-company-ipc';
 import { registerAuditIpc } from '../audit/register-audit-ipc';
 import type { DatabaseStatus } from '../shared/database-status';
@@ -21,6 +23,7 @@ export async function registerIpcHandlers(): Promise<void> {
   registerAssetIpc();
   registerNmapIpc();
   registerWinrmIpc();
+  registerAssessIpc();
   registerCompanyIpc();
   registerAuditIpc();
 
@@ -42,6 +45,7 @@ export async function registerIpcHandlers(): Promise<void> {
     );
     const db = await initializeDatabase(config);
     await runMigrations(db);
+    await seedBuiltinModules();
     await initializeUserStore();
     databaseStatus = { ok: true };
   } catch (error) {

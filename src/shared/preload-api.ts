@@ -4,6 +4,7 @@ import type {
   AssetInput,
   AssetItemResult,
   AssetListResult,
+  GroupListResult,
   LocationListResult,
 } from './asset-types';
 import type { LoginResult, PublicSession } from './auth-types';
@@ -14,6 +15,14 @@ import type {
 } from './scan-types';
 import type { CompanyProfileResult } from './company-types';
 import type { AuditListResult } from './audit-types';
+import type {
+  AssessRunResult,
+  AssessmentKind,
+  HistoryListResult,
+  ModuleItemResult,
+  ModuleListResult,
+  ResultGetResult,
+} from './assess-types';
 import type {
   WinrmAction,
   WinrmBatchResult,
@@ -39,6 +48,33 @@ export type NetXScanApi = {
   onWinrmProgress: (listener: (event: WinrmProgress) => void) => () => void;
   listLocations: () => Promise<LocationListResult>;
   addLocation: (name: string) => Promise<LocationListResult>;
+  deleteLocation: (name: string) => Promise<LocationListResult>;
+  listGroups: () => Promise<GroupListResult>;
+  addGroup: (name: string) => Promise<GroupListResult>;
+  renameGroup: (name: string, newName: string) => Promise<GroupListResult>;
+  deleteGroup: (name: string) => Promise<GroupListResult>;
+  listAssessModules: () => Promise<ModuleListResult>;
+  saveAssessModule: (input: {
+    id?: string;
+    name: string;
+    description: string | null;
+    assessScript: string;
+    remediationScript: string | null;
+    reverseScript: string | null;
+  }) => Promise<ModuleItemResult>;
+  deleteAssessModule: (id: string) => Promise<ModuleItemResult>;
+  runAssessment: (input: {
+    id: string;
+    moduleId: string;
+    kind?: AssessmentKind;
+    params?: Record<string, string>;
+  }) => Promise<AssessRunResult>;
+  reverseAssessment: (historyId: string) => Promise<AssessRunResult>;
+  listAssessHistory: (assetId: string) => Promise<HistoryListResult>;
+  getAssessResult: (
+    assetId: string,
+    moduleId: string,
+  ) => Promise<ResultGetResult>;
   getAuthorizedRanges: () => Promise<AuthorizedRangesResult>;
   runAuthorizedScan: (target: string) => Promise<AuthorizedScanResult>;
   onScanHostFound: (listener: (asset: Asset) => void) => () => void;

@@ -17,6 +17,7 @@ type AssetRow = {
   asset_type: string;
   notes: string | null;
   location: string | null;
+  asset_group: string | null;
   archived_at: Date | string | null;
   winrm_manageable: number | boolean | null;
   winrm_checked_at: Date | string | null;
@@ -54,6 +55,7 @@ function toAsset(row: AssetRow): Asset {
     assetType: row.asset_type as AssetType,
     notes: row.notes,
     location: row.location,
+    assetGroup: row.asset_group,
     archivedAt: asIso(row.archived_at),
     winrmManageable: asBool(row.winrm_manageable),
     winrmCheckedAt: asIso(row.winrm_checked_at),
@@ -65,7 +67,7 @@ function toAsset(row: AssetRow): Asset {
 }
 
 const SELECT_FIELDS = `id, hostname, ip_address, mac_address, asset_type, notes,
-  location, archived_at, winrm_manageable, winrm_checked_at, winrm_detail,
+  location, asset_group, archived_at, winrm_manageable, winrm_checked_at, winrm_detail,
   created_at, updated_at`;
 
 export async function listAssets(includeArchived: boolean): Promise<Asset[]> {
@@ -107,7 +109,8 @@ export async function updateAsset(
          mac_address = :macAddress,
          asset_type = :assetType,
          notes = :notes,
-         location = :location
+         location = :location,
+         asset_group = :assetGroup
      WHERE id = :id`,
     {
       id,
@@ -117,6 +120,7 @@ export async function updateAsset(
       assetType: input.assetType,
       notes: input.notes,
       location: input.location,
+      assetGroup: input.assetGroup,
     },
   );
   const header = result as { affectedRows?: number };
@@ -168,7 +172,9 @@ export async function deleteAsset(id: string): Promise<Asset | undefined> {
     'DELETE FROM asset_assessments WHERE asset_id = :id',
     'DELETE FROM windows_assessments WHERE asset_id = :id',
     'DELETE FROM findings WHERE asset_id = :id',
-    'DELETE FROM correlation_matches WHERE asset_id = :id',
+    'DELETE FROM assessment_history WHERE asset_id = :id',
+    'DELETE FROM assessment_results WHERE asset_id = :id',
+    'DELETE FROM baseline_findings WHERE asset_id = :id',
   ];
 
   for (const sql of statements) {

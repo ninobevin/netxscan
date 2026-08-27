@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { CompanyProfile } from '../shared/company-types';
 import type { PublicSession } from '../shared/auth-types';
 import { DiscoveryAssets } from './DiscoveryAssets';
+import { SecurityAssessment } from './SecurityAssessment';
 import { AuditPanel } from './AuditPanel';
 import { CompanyProfilePanel } from './CompanyProfilePanel';
 import { LoadingScreen } from './LoadingScreen';
 import { LoginView } from './LoginView';
 import { PageLayout } from './PageLayout';
 
-type AppView = 'discovery' | 'company' | 'audit';
+type AppView = 'discovery' | 'security' | 'company' | 'audit';
 
 type ShellProps = {
   session: PublicSession;
@@ -21,6 +22,7 @@ const MENU_LOAD_MS = 450;
 
 const NAV_ITEMS: Array<{ id: AppView; label: string }> = [
   { id: 'discovery', label: 'Discovery and Asset' },
+  { id: 'security', label: 'Security assessment' },
   { id: 'audit', label: 'Audit' },
   { id: 'company', label: 'Settings' },
 ];
@@ -87,6 +89,8 @@ function Shell({ session, onLoggedOut, profile, onProfileUpdated }: ShellProps) 
         <LoadingScreen />
       ) : view === 'discovery' ? (
         <DiscoveryAssets canScan={session.role === 'administrator'} />
+      ) : view === 'security' ? (
+        <SecurityAssessment canRun={session.role === 'administrator'} />
       ) : view === 'company' ? (
         profile ? (
           <CompanyProfilePanel

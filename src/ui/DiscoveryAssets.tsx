@@ -1,3 +1,4 @@
+import { CheckCircle2, Minus, XCircle } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   ASSET_TYPES,
@@ -81,16 +82,25 @@ function clampPageSize(value: number): number {
   return Math.min(PAGE_SIZE_MAX, Math.max(PAGE_SIZE_MIN, Math.round(value)));
 }
 
-function manageableLabel(asset: Asset): string {
+function ManageableIcon({ asset }: { asset: Asset }) {
   if (asset.winrmManageable === true) {
-    return 'Yes';
+    return (
+      <CheckCircle2
+        className="h-5 w-5 text-health-accent"
+        aria-label="Manageable"
+      />
+    );
   }
 
   if (asset.winrmManageable === false) {
-    return 'No';
+    return (
+      <XCircle className="h-5 w-5 text-health-danger" aria-label="Not manageable" />
+    );
   }
 
-  return '—';
+  return (
+    <Minus className="h-5 w-5 text-health-subtle" aria-label="Not tested" />
+  );
 }
 
 function isSuccessMessage(message: string): boolean {
@@ -110,12 +120,15 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
   const [target, setTarget] = useState('');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
+  const [groups, setGroups] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Asset | null>(null);
   const [form, setForm] = useState<AssetInput | null>(null);
   const [newLocation, setNewLocation] = useState('');
+  const [newGroup, setNewGroup] = useState('');
+  const [groupRename, setGroupRename] = useState('');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
@@ -141,6 +154,13 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
     }
   };
 
+  const loadGroups = async () => {
+    const result = await window.netxscan.listGroups();
+    if (result.ok) {
+      setGroups(result.groups);
+    }
+  };
+
   useEffect(() => {
     void window.netxscan.getAuthorizedRanges().then((result) => {
       if (result.ok) {
@@ -152,6 +172,7 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
     });
     void loadAssets();
     void loadLocations();
+    void loadGroups();
   }, []);
 
   useEffect(() => {
@@ -168,8 +189,9 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
       }
 
       setWinrmActiveId(null);
-      if (progress.asset) {
-        setAssets((current) => mergeAsset(current, progress.asset));
+      if (progress.type === 'done' && progress.asset) {
+        const updated = progress.asset;
+        setAssets((current) => mergeAsset(current, updated));
       }
     });
   }, []);
@@ -338,10 +360,14 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
       assetType: asset.assetType,
       notes: asset.notes,
       location: asset.location,
+      assetGroup: asset.assetGroup,
     });
     setNewLocation('');
+    setNewGroup('');
+    setGroupRename('');
     setMessage(null);
     void loadLocations();
+    void loadGroups();
   };
 
   const onSaveEdit = async (event: FormEvent) => {
@@ -376,6 +402,67 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
       current ? { ...current, location: newLocation.trim() } : current,
     );
     setNewLocation('');
+  };
+
+  const onDeleteLocation = async () => {
+    if (!form?.location) {
+      return;
+    }
+    const result = await window.netxscan.deleteLocation(form.location);
+    if (!result.ok) {
+      setMessage(errorText(result.error));
+      return;
+    }
+    setLocations(result.locations);
+    setForm((current) =>
+      current ? { ...current, location: null } : current,
+    );
+  };
+
+  const onAddGroup = async () => {
+    const result = await window.netxscan.addGroup(newGroup);
+    if (!result.ok) {
+      setMessage(errorText(result.error));
+      return;
+    }
+    setGroups(result.groups);
+    setForm((current) =>
+      current ? { ...current, assetGroup: newGroup.trim() } : current,
+    );
+    setNewGroup('');
+  };
+
+  const onRenameGroup = async () => {
+    if (!form?.assetGroup) {
+      return;
+    }
+    const result = await window.netxscan.renameGroup(form.assetGroup, groupRename);
+    if (!result.ok) {
+      setMessage(errorText(result.error));
+      return;
+    }
+    setGroups(result.groups);
+    setForm((current) =>
+      current ? { ...current, assetGroup: groupRename.trim() } : current,
+    );
+    setGroupRename('');
+    await loadAssets();
+  };
+
+  const onDeleteGroup = async () => {
+    if (!form?.assetGroup) {
+      return;
+    }
+    const result = await window.netxscan.deleteGroup(form.assetGroup);
+    if (!result.ok) {
+      setMessage(errorText(result.error));
+      return;
+    }
+    setGroups(result.groups);
+    setForm((current) =>
+      current ? { ...current, assetGroup: null } : current,
+    );
+    await loadAssets();
   };
 
   return (
@@ -517,6 +604,7 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
                   <th className="py-2 pr-3 font-medium">Hostname</th>
                   <th className="py-2 pr-3 font-medium">IP</th>
                   <th className="py-2 pr-3 font-medium">Location</th>
+                  <th className="py-2 pr-3 font-medium">Group</th>
                   <th className="py-2 pr-3 font-medium">Type</th>
                   <th className="py-2 pr-3 font-medium">Manageable</th>
                   <th className="py-2 font-medium">Actions</th>
@@ -547,12 +635,17 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
                       </td>
                       <td className="py-2 pr-3">{asset.ipAddress ?? '—'}</td>
                       <td className="py-2 pr-3">{asset.location ?? '—'}</td>
+                      <td className="py-2 pr-3">{asset.assetGroup ?? '—'}</td>
                       <td className="py-2 pr-3">{typeLabel(asset.assetType)}</td>
                       <td
                         className="py-2 pr-3"
                         title={asset.winrmDetail ?? undefined}
                       >
-                        {rowBusy ? 'Checking…' : manageableLabel(asset)}
+                        {rowBusy ? (
+                          'Checking…'
+                        ) : (
+                          <ManageableIcon asset={asset} />
+                        )}
                       </td>
                       <td className="py-2">
                         <button
@@ -696,6 +789,86 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
                 }}
               >
                 Add
+              </button>
+              <button
+                type="button"
+                className="app-btn-secondary text-health-danger"
+                disabled={!form.location}
+                onClick={() => {
+                  void onDeleteLocation();
+                }}
+              >
+                Delete location
+              </button>
+            </div>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium text-health-subtle">Group</span>
+              <select
+                value={form.assetGroup ?? ''}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    assetGroup: event.target.value || null,
+                  })
+                }
+              >
+                <option value="">No group</option>
+                {groups.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="grid min-w-40 flex-1 gap-1 text-sm">
+                <span className="font-medium text-health-subtle">Add group</span>
+                <input
+                  value={newGroup}
+                  placeholder="Clinic workstations"
+                  onChange={(event) => setNewGroup(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="app-btn-secondary"
+                onClick={() => {
+                  void onAddGroup();
+                }}
+              >
+                Add
+              </button>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="grid min-w-40 flex-1 gap-1 text-sm">
+                <span className="font-medium text-health-subtle">
+                  Rename group
+                </span>
+                <input
+                  value={groupRename}
+                  placeholder="New group name"
+                  onChange={(event) => setGroupRename(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="app-btn-secondary"
+                disabled={!form.assetGroup}
+                onClick={() => {
+                  void onRenameGroup();
+                }}
+              >
+                Rename
+              </button>
+              <button
+                type="button"
+                className="app-btn-secondary text-health-danger"
+                disabled={!form.assetGroup}
+                onClick={() => {
+                  void onDeleteGroup();
+                }}
+              >
+                Delete group
               </button>
             </div>
             <label className="grid gap-1 text-sm">

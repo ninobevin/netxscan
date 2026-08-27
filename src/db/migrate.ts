@@ -445,6 +445,145 @@ const migrations: Migration[] = [
       ALTER TABLE assets ADD COLUMN winrm_detail TEXT
     `,
   },
+  {
+    name: '023_asset_groups',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS asset_groups (
+        id CHAR(36) NOT NULL,
+        name VARCHAR(128) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY asset_groups_name_unique (name)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS asset_groups (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `,
+  },
+  {
+    name: '024_asset_group_column',
+    mysql: `
+      ALTER TABLE assets
+        ADD COLUMN asset_group VARCHAR(128) NULL
+    `,
+    sqlite: `
+      ALTER TABLE assets ADD COLUMN asset_group TEXT
+    `,
+  },
+  {
+    name: '025_assessment_modules',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS assessment_modules (
+        id CHAR(36) NOT NULL,
+        slug VARCHAR(64) NULL,
+        name VARCHAR(128) NOT NULL,
+        description VARCHAR(500) NULL,
+        assess_script MEDIUMTEXT NOT NULL,
+        remediation_script MEDIUMTEXT NULL,
+        reverse_script MEDIUMTEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY assessment_modules_slug_unique (slug)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS assessment_modules (
+        id TEXT NOT NULL PRIMARY KEY,
+        slug TEXT UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT,
+        assess_script TEXT NOT NULL,
+        remediation_script TEXT,
+        reverse_script TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `,
+  },
+  {
+    name: '026_assessment_results',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS assessment_results (
+        asset_id CHAR(36) NOT NULL,
+        module_id CHAR(36) NOT NULL,
+        positive TINYINT NOT NULL,
+        summary VARCHAR(500) NULL,
+        payload_json MEDIUMTEXT NULL,
+        ran_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (asset_id, module_id)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS assessment_results (
+        asset_id TEXT NOT NULL,
+        module_id TEXT NOT NULL,
+        positive INTEGER NOT NULL,
+        summary TEXT,
+        payload_json TEXT,
+        ran_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (asset_id, module_id)
+      )
+    `,
+  },
+  {
+    name: '027_assessment_history',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS assessment_history (
+        id CHAR(36) NOT NULL,
+        asset_id CHAR(36) NOT NULL,
+        module_id CHAR(36) NOT NULL,
+        kind VARCHAR(16) NOT NULL,
+        params_json VARCHAR(1000) NULL,
+        positive TINYINT NOT NULL,
+        summary VARCHAR(500) NULL,
+        payload_json MEDIUMTEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY assessment_history_asset (asset_id, created_at)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS assessment_history (
+        id TEXT NOT NULL PRIMARY KEY,
+        asset_id TEXT NOT NULL,
+        module_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        params_json TEXT,
+        positive INTEGER NOT NULL,
+        summary TEXT,
+        payload_json TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `,
+  },
+  {
+    name: '028_baseline_findings',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS baseline_findings (
+        asset_id CHAR(36) NOT NULL,
+        check_id VARCHAR(80) NOT NULL,
+        status VARCHAR(8) NOT NULL,
+        detail VARCHAR(500) NULL,
+        collected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (asset_id, check_id)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS baseline_findings (
+        asset_id TEXT NOT NULL,
+        check_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        detail TEXT,
+        collected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (asset_id, check_id)
+      )
+    `,
+  },
 ];
 
 export async function runMigrations(db: DbClient): Promise<void> {

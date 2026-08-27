@@ -33,6 +33,25 @@ const api: NetXScanApi = Object.freeze({
   },
   listLocations: () => ipcRenderer.invoke(ipcChannels.locationList),
   addLocation: (name) => ipcRenderer.invoke(ipcChannels.locationAdd, { name }),
+  deleteLocation: (name) =>
+    ipcRenderer.invoke(ipcChannels.locationDelete, { name }),
+  listGroups: () => ipcRenderer.invoke(ipcChannels.groupList),
+  addGroup: (name) => ipcRenderer.invoke(ipcChannels.groupAdd, { name }),
+  renameGroup: (name, newName) =>
+    ipcRenderer.invoke(ipcChannels.groupRename, { name, newName }),
+  deleteGroup: (name) => ipcRenderer.invoke(ipcChannels.groupDelete, { name }),
+  listAssessModules: () => ipcRenderer.invoke(ipcChannels.assessModuleList),
+  saveAssessModule: (input) =>
+    ipcRenderer.invoke(ipcChannels.assessModuleSave, input),
+  deleteAssessModule: (id) =>
+    ipcRenderer.invoke(ipcChannels.assessModuleDelete, { id }),
+  runAssessment: (input) => ipcRenderer.invoke(ipcChannels.assessRun, input),
+  reverseAssessment: (historyId) =>
+    ipcRenderer.invoke(ipcChannels.assessReverse, { historyId }),
+  listAssessHistory: (assetId) =>
+    ipcRenderer.invoke(ipcChannels.assessHistory, { id: assetId }),
+  getAssessResult: (assetId, moduleId) =>
+    ipcRenderer.invoke(ipcChannels.assessResult, { id: assetId, moduleId }),
   getAuthorizedRanges: () =>
     ipcRenderer.invoke(ipcChannels.scanAuthorizedRanges),
   runAuthorizedScan: (target) =>

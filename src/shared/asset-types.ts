@@ -25,6 +25,7 @@ export type Asset = {
   assetType: AssetType;
   notes: string | null;
   location: string | null;
+  assetGroup: string | null;
   archivedAt: string | null;
   winrmManageable: boolean | null;
   winrmCheckedAt: string | null;
@@ -45,6 +46,7 @@ export type AssetInput = {
   assetType: AssetType;
   notes: string | null;
   location: string | null;
+  assetGroup: string | null;
 };
 
 export type AssetMutationError =
@@ -64,4 +66,8 @@ export type AssetItemResult =
 
 export type LocationListResult =
   | { ok: true; locations: string[] }
+  | { ok: false; error: AssetMutationError };
+
+export type GroupListResult =
+  | { ok: true; groups: string[] }
   | { ok: false; error: AssetMutationError };

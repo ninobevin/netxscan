@@ -29,3 +29,12 @@ export async function addLocationName(name: string): Promise<string[]> {
 
   return listLocationNames();
 }
+
+export async function deleteLocationName(name: string): Promise<string[]> {
+  const db = getDb();
+  await db.query(`UPDATE assets SET location = NULL WHERE location = :name`, {
+    name,
+  });
+  await db.query(`DELETE FROM locations WHERE name = :name`, { name });
+  return listLocationNames();
+}

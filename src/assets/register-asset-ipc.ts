@@ -5,10 +5,17 @@ import type {
   AssetDeleteManyResult,
   AssetItemResult,
   AssetListResult,
+  GroupListResult,
   LocationListResult,
 } from '../shared/asset-types';
 import { ipcChannels } from '../shared/ipc-channels';
-import { addLocationName, listLocationNames } from './locations';
+import { addLocationName, deleteLocationName, listLocationNames } from './locations';
+import {
+  addGroupName,
+  deleteGroupName,
+  listGroupNames,
+  renameGroupName,
+} from './groups';
 import {
   deleteAsset,
   getAssetById,
@@ -21,6 +28,7 @@ import {
   parseAssetIds,
   parseAssetInput,
   parseLocationName,
+  parseRenameNames,
 } from './validate';
 
 function requireAuth(): boolean {
@@ -207,6 +215,110 @@ export function registerAssetIpc(): void {
         const locations = await addLocationName(name);
         await writeAudit('location_add', name);
         return { ok: true, locations };
+      } catch {
+        return { ok: false, error: 'database_unavailable' };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.locationDelete,
+    async (_event, payload: unknown): Promise<LocationListResult> => {
+      if (!requireAuth()) {
+        return { ok: false, error: 'unauthorized' };
+      }
+
+      const name = parseLocationName(payload);
+      if (!name) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      try {
+        const locations = await deleteLocationName(name);
+        await writeAudit('location_delete', name);
+        return { ok: true, locations };
+      } catch {
+        return { ok: false, error: 'database_unavailable' };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.groupList,
+    async (): Promise<GroupListResult> => {
+      if (!requireAuth()) {
+        return { ok: false, error: 'unauthorized' };
+      }
+
+      try {
+        const groups = await listGroupNames();
+        return { ok: true, groups };
+      } catch {
+        return { ok: false, error: 'database_unavailable' };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.groupAdd,
+    async (_event, payload: unknown): Promise<GroupListResult> => {
+      if (!requireAuth()) {
+        return { ok: false, error: 'unauthorized' };
+      }
+
+      const name = parseLocationName(payload);
+      if (!name) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      try {
+        const groups = await addGroupName(name);
+        await writeAudit('group_add', name);
+        return { ok: true, groups };
+      } catch {
+        return { ok: false, error: 'database_unavailable' };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.groupRename,
+    async (_event, payload: unknown): Promise<GroupListResult> => {
+      if (!requireAuth()) {
+        return { ok: false, error: 'unauthorized' };
+      }
+
+      const names = parseRenameNames(payload);
+      if (!names) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      try {
+        const groups = await renameGroupName(names.name, names.newName);
+        await writeAudit('group_rename', `${names.name} -> ${names.newName}`);
+        return { ok: true, groups };
+      } catch {
+        return { ok: false, error: 'database_unavailable' };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.groupDelete,
+    async (_event, payload: unknown): Promise<GroupListResult> => {
+      if (!requireAuth()) {
+        return { ok: false, error: 'unauthorized' };
+      }
+
+      const name = parseLocationName(payload);
+      if (!name) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      try {
+        const groups = await deleteGroupName(name);
+        await writeAudit('group_delete', name);
+        return { ok: true, groups };
       } catch {
         return { ok: false, error: 'database_unavailable' };
       }
