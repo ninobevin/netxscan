@@ -2,6 +2,7 @@ import { getModuleBySlug, getResult } from '../assess/repository';
 import { listAssets } from '../assets/repository';
 import { fetchCvesForPrefix, searchCpes } from './client';
 import {
+  cpeIdentityFits,
   cpeProductPrefix,
   normalizeProductName,
   parseCpe23,
@@ -31,6 +32,7 @@ export function endNvdSync(): void {
 }
 
 function scoreCpe(
+  inventoryName: string,
   keyword: string,
   publisher: string | undefined,
   cpeName: string,
@@ -40,8 +42,11 @@ function scoreCpe(
   if (!parsed || parsed.part !== 'a') {
     return -1;
   }
+  if (!cpeIdentityFits(inventoryName, parsed.product, title)) {
+    return -1;
+  }
   let score = 1;
-  const hay = `${title} ${cpeName}`.toLowerCase();
+  const hay = `${title} ${parsed.product.replace(/_/g, ' ')}`.toLowerCase();
   for (const token of keyword.split(' ')) {
     if (token.length > 2 && hay.includes(token)) {
       score += 2;
@@ -57,7 +62,7 @@ function scoreCpe(
 }
 
 export async function collectInventoryKeywords(): Promise<
-  Array<{ keyword: string; display: string; publisher?: string }>
+  Array<{ keyword: string; display: string; name: string; publisher?: string }>
 > {
   const module = await getModuleBySlug('installed_software');
   if (!module) {
@@ -66,7 +71,7 @@ export async function collectInventoryKeywords(): Promise<
   const assets = await listAssets(false);
   const byKeyword = new Map<
     string,
-    { keyword: string; display: string; publisher?: string }
+    { keyword: string; display: string; name: string; publisher?: string }
   >();
   for (const asset of assets) {
     const result = await getResult(asset.id, module.id);
@@ -84,7 +89,8 @@ export async function collectInventoryKeywords(): Promise<
         byKeyword.set(keyword, {
           keyword,
           display: search,
-          publisher: (pkg as { publisher?: string }).publisher,
+          name,
+          publisher: pkg.publisher,
         });
       }
     }
@@ -112,8 +118,14 @@ export async function syncNvdCatalog(): Promise<{
       if (hit.deprecated) {
         continue;
       }
-      const score = scoreCpe(item.keyword, item.publisher, hit.cpeName, hit.title);
-      if (score < 0) {
+      const score = scoreCpe(
+        item.name,
+        item.keyword,
+        item.publisher,
+        hit.cpeName,
+        hit.title,
+      );
+      if (score < 4) {
         continue;
       }
       if (!best || score > best.score) {

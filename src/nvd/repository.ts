@@ -55,10 +55,11 @@ export async function getCpeByKeyword(keyword: string): Promise<{
   cpePrefix: string;
   vendor: string;
   product: string;
+  title: string;
 } | null> {
   const db = getDb();
   const [rows] = await db.query(
-    `SELECT cpe23, cpe_prefix, vendor, product FROM cpe_cache WHERE keyword = :keyword`,
+    `SELECT cpe23, cpe_prefix, vendor, product, title FROM cpe_cache WHERE keyword = :keyword`,
     { keyword },
   );
   const row = (
@@ -67,6 +68,7 @@ export async function getCpeByKeyword(keyword: string): Promise<{
       cpe_prefix: string;
       vendor: string;
       product: string;
+      title: string;
     }>
   )[0];
   if (!row) {
@@ -77,6 +79,7 @@ export async function getCpeByKeyword(keyword: string): Promise<{
     cpePrefix: row.cpe_prefix,
     vendor: row.vendor,
     product: row.product,
+    title: row.title,
   };
 }
 

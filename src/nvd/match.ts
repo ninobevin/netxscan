@@ -1,6 +1,7 @@
 import type { SoftwareCveHit } from '../shared/nvd-types';
 import {
   cpeAppliesToInstalled,
+  cpeIdentityFits,
   normalizeProductName,
   skipSoftwareInventory,
 } from './cpe';
@@ -31,6 +32,9 @@ export async function evaluateInstalledSoftware(
     }
     const cpe = await getCpeByKeyword(keyword);
     if (!cpe) {
+      continue;
+    }
+    if (!cpeIdentityFits(name, cpe.product, cpe.title)) {
       continue;
     }
     const matches = await listMatchesForProduct(cpe.vendor, cpe.product);
