@@ -246,7 +246,7 @@ foreach ($path in $paths) {
 
 export const SOFTWARE_REMEDIATE = `
 $action = [string]$NetxParams.action
-$key = [string]$NetxParams.uninstallKey
+$key = ([string]$NetxParams.uninstallKey).Trim()
 $id = [string]$NetxParams.wingetId
 function Get-MsiCode([string]$UninstallKey) {
   if ($UninstallKey -match '^\\{[0-9A-Fa-f-]{36}\\}$') { return $UninstallKey }
@@ -263,7 +263,7 @@ function Get-MsiCode([string]$UninstallKey) {
   return $null
 }
 if ($action -eq 'uninstall') {
-  if ($key -notmatch '^[A-Za-z0-9._\\{\\}-]{1,128}$') {
+  if ($key -notmatch '^[A-Za-z0-9 ._+{}-]{1,128}$') {
     @{ positive = $false; summary = 'invalid uninstall key'; data = @{} } | ConvertTo-Json -Compress
     return
   }
