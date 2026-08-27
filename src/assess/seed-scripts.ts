@@ -236,6 +236,7 @@ foreach ($path in $paths) {
         version = [string]$_.DisplayVersion
         publisher = [string]$_.Publisher
         uninstallKey = [string]$_.PSChildName
+        quietUninstall = [string]$_.QuietUninstallString
       }
     }
   }
@@ -247,17 +248,33 @@ export const SOFTWARE_REMEDIATE = `
 $action = [string]$NetxParams.action
 $key = [string]$NetxParams.uninstallKey
 $id = [string]$NetxParams.wingetId
+function Get-MsiCode([string]$UninstallKey) {
+  if ($UninstallKey -match '^\\{[0-9A-Fa-f-]{36}\\}$') { return $UninstallKey }
+  $paths = @(
+    'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + $UninstallKey,
+    'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + $UninstallKey
+  )
+  foreach ($path in $paths) {
+    $item = Get-ItemProperty -LiteralPath $path -ErrorAction SilentlyContinue
+    if (-not $item) { continue }
+    $blob = ([string]$item.QuietUninstallString) + ' ' + ([string]$item.UninstallString)
+    if ($blob -match '\\{[0-9A-Fa-f-]{36}\\}') { return $Matches[0] }
+  }
+  return $null
+}
 if ($action -eq 'uninstall') {
-  if ($key -notmatch '^\\{[0-9A-Fa-f-]{36}\\}$' -and $key -notmatch '^[A-Za-z0-9._-]{1,128}$') {
+  if ($key -notmatch '^[A-Za-z0-9._\\{\\}-]{1,128}$') {
     @{ positive = $false; summary = 'invalid uninstall key'; data = @{} } | ConvertTo-Json -Compress
     return
   }
-  if ($key -match '^\\{[0-9A-Fa-f-]{36}\\}$') {
-    $p = Start-Process -FilePath "$env:SystemRoot\\System32\\msiexec.exe" -ArgumentList @('/x', $key, '/qn') -Wait -PassThru
-    @{ positive = ($p.ExitCode -eq 0); summary = "msiexec exit $($p.ExitCode)"; data = @{} } | ConvertTo-Json -Compress
+  $code = Get-MsiCode $key
+  if (-not $code) {
+    @{ positive = $false; summary = 'no MSI product code (cannot uninstall this package safely)'; data = @{} } | ConvertTo-Json -Compress
     return
   }
-  @{ positive = $false; summary = 'unsupported uninstall key'; data = @{} } | ConvertTo-Json -Compress
+  $p = Start-Process -FilePath "$env:SystemRoot\\System32\\msiexec.exe" -ArgumentList @('/x', $code, '/qn', '/norestart') -Wait -PassThru
+  $ok = ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010)
+  @{ positive = $ok; summary = "msiexec exit $($p.ExitCode) (waited until finished)"; data = @{ exitCode = $p.ExitCode } } | ConvertTo-Json -Compress -Depth 4
   return
 }
 if ($action -eq 'update') {
@@ -271,7 +288,7 @@ if ($action -eq 'update') {
     return
   }
   $p = Start-Process -FilePath $winget -ArgumentList @('upgrade','--id',$id,'--accept-package-agreements','--accept-source-agreements') -Wait -PassThru
-  @{ positive = ($p.ExitCode -eq 0); summary = "winget exit $($p.ExitCode)"; data = @{} } | ConvertTo-Json -Compress
+  @{ positive = ($p.ExitCode -eq 0); summary = "winget exit $($p.ExitCode) (waited until finished)"; data = @{} } | ConvertTo-Json -Compress
   return
 }
 @{ positive = $false; summary = 'unknown action'; data = @{} } | ConvertTo-Json -Compress

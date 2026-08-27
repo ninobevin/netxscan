@@ -52,6 +52,7 @@ const api: NetXScanApi = Object.freeze({
     ipcRenderer.invoke(ipcChannels.assessHistory, { id: assetId }),
   getAssessResult: (assetId, moduleId) =>
     ipcRenderer.invoke(ipcChannels.assessResult, { id: assetId, moduleId }),
+  getFindingsMatrix: () => ipcRenderer.invoke(ipcChannels.findingsMatrix),
   getAuthorizedRanges: () =>
     ipcRenderer.invoke(ipcChannels.scanAuthorizedRanges),
   runAuthorizedScan: (target) =>

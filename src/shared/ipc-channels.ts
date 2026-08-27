@@ -26,6 +26,7 @@ export const ipcChannels = {
   assessHistory: 'assess:history',
   assessResult: 'assess:result',
   assessReverse: 'assess:reverse',
+  findingsMatrix: 'findings:matrix',
   scanAuthorizedRanges: 'scan:authorized-ranges',
   scanRun: 'scan:run',
   scanHostFound: 'scan:host-found',

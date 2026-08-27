@@ -9,6 +9,7 @@ import { runMigrations } from '../db/migrate';
 import { registerNmapIpc } from '../nmap/register-nmap-ipc';
 import { registerWinrmIpc } from '../winrm/register-winrm-ipc';
 import { registerAssessIpc } from '../assess/register-assess-ipc';
+import { registerFindingsIpc } from '../findings/register-findings-ipc';
 import { seedBuiltinModules } from '../assess/seed';
 import { registerCompanyIpc } from '../company/register-company-ipc';
 import { registerAuditIpc } from '../audit/register-audit-ipc';
@@ -24,6 +25,7 @@ export async function registerIpcHandlers(): Promise<void> {
   registerNmapIpc();
   registerWinrmIpc();
   registerAssessIpc();
+  registerFindingsIpc();
   registerCompanyIpc();
   registerAuditIpc();
 

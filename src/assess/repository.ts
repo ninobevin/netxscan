@@ -88,12 +88,29 @@ export async function insertBuiltinIfMissing(
   remediationScript: string | null,
   reverseScript: string | null,
 ): Promise<void> {
+  const db = getDb();
   const existing = await getModuleBySlug(slug);
   if (existing) {
+    await db.query(
+      `UPDATE assessment_modules
+       SET name = :name,
+           description = :description,
+           assess_script = :assessScript,
+           remediation_script = :remediationScript,
+           reverse_script = :reverseScript
+       WHERE slug = :slug`,
+      {
+        slug,
+        name,
+        description,
+        assessScript,
+        remediationScript,
+        reverseScript,
+      },
+    );
     return;
   }
 
-  const db = getDb();
   await db.query(
     `INSERT INTO assessment_modules
       (id, slug, name, description, assess_script, remediation_script, reverse_script)
@@ -354,4 +371,26 @@ export async function replaceBaselineFindings(
       },
     );
   }
+}
+
+export async function listAllBaselineFindings(): Promise<
+  Array<{ assetId: string; checkId: string; status: string; detail: string }>
+> {
+  const db = getDb();
+  const [rows] = await db.query(
+    `SELECT asset_id, check_id, status, detail FROM baseline_findings`,
+  );
+  return (
+    rows as Array<{
+      asset_id: string;
+      check_id: string;
+      status: string;
+      detail: string | null;
+    }>
+  ).map((row) => ({
+    assetId: row.asset_id,
+    checkId: row.check_id,
+    status: row.status,
+    detail: row.detail ?? '',
+  }));
 }

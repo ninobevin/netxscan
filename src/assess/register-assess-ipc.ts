@@ -80,6 +80,9 @@ function parseParams(value: unknown): Record<string, string> | null {
 }
 
 function timeoutFor(slug: string | null, kind: AssessmentKind): number {
+  if (slug === 'installed_software' && kind === 'remediate') {
+    return 300_000;
+  }
   if (slug === 'security_updates' && kind === 'remediate') {
     return 600_000;
   }

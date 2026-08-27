@@ -23,6 +23,7 @@ import type {
   ModuleListResult,
   ResultGetResult,
 } from './assess-types';
+import type { FindingsMatrixResult } from './findings-types';
 import type {
   WinrmAction,
   WinrmBatchResult,
@@ -75,6 +76,7 @@ export type NetXScanApi = {
     assetId: string,
     moduleId: string,
   ) => Promise<ResultGetResult>;
+  getFindingsMatrix: () => Promise<FindingsMatrixResult>;
   getAuthorizedRanges: () => Promise<AuthorizedRangesResult>;
   runAuthorizedScan: (target: string) => Promise<AuthorizedScanResult>;
   onScanHostFound: (listener: (asset: Asset) => void) => () => void;

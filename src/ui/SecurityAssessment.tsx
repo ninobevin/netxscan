@@ -1,4 +1,16 @@
-import { CheckCircle2, Minus, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  Globe,
+  History,
+  Minus,
+  Package,
+  RefreshCw,
+  Shield,
+  ShieldCheck,
+  User,
+  Users,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { Asset } from '../shared/asset-types';
 import type {
@@ -94,6 +106,7 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, string | null>>({});
   const [history, setHistory] = useState<AssessmentHistoryRow[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
   const [customName, setCustomName] = useState('');
   const [customAssess, setCustomAssess] = useState(
     '{ positive = $true; summary = "ok"; data = @{} } | ConvertTo-Json -Compress',
@@ -155,7 +168,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
     if (!selected || !canRun) {
       return;
     }
-    setBusy(`${module.id}:${kind}:${params?.uninstallKey ?? ''}`);
+    setBusy(
+      `${module.id}:${kind}:${params?.uninstallKey ?? params?.wingetId ?? ''}`,
+    );
     setMessage(null);
     const result = await window.netxscan.runAssessment({
       id: selected.id,
@@ -325,7 +340,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
       {baseline ? (
         <section className="app-card overflow-x-auto">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="font-semibold">Baseline findings</h3>
+            <h3 className="inline-flex items-center gap-2 font-semibold">
+              <Shield className="h-5 w-5" /> Baseline findings
+            </h3>
             <BusyButton
               className="app-btn-primary"
               busy={busy === `${baseline.id}:assess:`}
@@ -339,7 +356,8 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
           </div>
           {baselineFindings.length === 0 ? (
             <p className="text-sm text-health-subtle">
-              Run Get to collect PASS / WARN / FAIL findings.
+              PASS means the required setting is in place. FAIL/WARN means the
+              host is not compliant. Run Get to collect findings.
             </p>
           ) : (
             <table className="w-full text-left text-sm">
@@ -362,7 +380,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
       {software ? (
         <section className="app-card overflow-x-auto">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="font-semibold">Installed software</h3>
+            <h3 className="inline-flex items-center gap-2 font-semibold">
+              <Package className="h-5 w-5" /> Installed software
+            </h3>
             <BusyButton
               className="app-btn-secondary"
               busy={busy === `${software.id}:assess:`}
@@ -394,12 +414,19 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
                     <td className="py-1 pr-3">{pkg.name}</td>
                     <td className="py-1 pr-3">{pkg.version ?? '—'}</td>
                     <td className="py-1">
-                      <button
-                        type="button"
+                      <BusyButton
                         className="mr-3 text-health-danger"
+                        busy={
+                          busy ===
+                          `${software.id}:remediate:${pkg.uninstallKey ?? ''}`
+                        }
+                        busyLabel="Uninstalling…"
+                        disabled={!pkg.uninstallKey}
                         onClick={() => {
                           if (
-                            window.confirm(`Uninstall ${pkg.name} on this host?`) &&
+                            window.confirm(
+                              `Uninstall ${pkg.name} on this host? This waits until msiexec finishes.`,
+                            ) &&
                             pkg.uninstallKey
                           ) {
                             void run(software, 'remediate', {
@@ -410,10 +437,14 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
                         }}
                       >
                         Uninstall
-                      </button>
-                      <button
-                        type="button"
+                      </BusyButton>
+                      <BusyButton
                         className="text-health-accent"
+                        busy={
+                          busy ===
+                          `${software.id}:remediate:${pkg.name.replace(/[^A-Za-z0-9._+-]/g, '')}`
+                        }
+                        busyLabel="Updating…"
                         onClick={() => {
                           if (window.confirm(`Update ${pkg.name}?`)) {
                             void run(software, 'remediate', {
@@ -424,7 +455,7 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
                         }}
                       >
                         Update
-                      </button>
+                      </BusyButton>
                     </td>
                   </tr>
                 ))}
@@ -437,7 +468,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
       {updates ? (
         <section className="app-card">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold">Security updates</h3>
+            <h3 className="inline-flex items-center gap-2 font-semibold">
+              <RefreshCw className="h-5 w-5" /> Security updates
+            </h3>
             <div className="flex gap-2">
               <BusyButton
                 className="app-btn-secondary"
@@ -477,7 +510,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
       {firewall ? (
         <section className="app-card">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="font-semibold">Firewall</h3>
+            <h3 className="inline-flex items-center gap-2 font-semibold">
+              <ShieldCheck className="h-5 w-5" /> Firewall
+            </h3>
             <BusyButton
               className="app-btn-secondary"
               busy={busy === `${firewall.id}:assess:`}
@@ -510,7 +545,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
       {localUsers ? (
         <section className="app-card">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="font-semibold">Local users</h3>
+            <h3 className="inline-flex items-center gap-2 font-semibold">
+              <Users className="h-5 w-5" /> Local users
+            </h3>
             <BusyButton
               className="app-btn-secondary"
               busy={busy === `${localUsers.id}:assess:`}
@@ -540,7 +577,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
       {loggedIn ? (
         <section className="app-card">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="font-semibold">Currently logged in</h3>
+            <h3 className="inline-flex items-center gap-2 font-semibold">
+              <User className="h-5 w-5" /> Currently logged in
+            </h3>
             <BusyButton
               className="app-btn-secondary"
               busy={busy === `${loggedIn.id}:assess:`}
@@ -570,7 +609,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
       {dc ? (
         <section className="app-card">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="font-semibold">Domain controller</h3>
+            <h3 className="inline-flex items-center gap-2 font-semibold">
+              <Globe className="h-5 w-5" /> Domain controller
+            </h3>
             <BusyButton
               className="app-btn-secondary"
               busy={busy === `${dc.id}:assess:`}
@@ -661,7 +702,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
       </section>
 
       <section className="app-card overflow-x-auto">
-        <h3 className="mb-2 font-semibold">History</h3>
+        <h3 className="mb-2 inline-flex items-center gap-2 font-semibold">
+          <History className="h-5 w-5" /> History
+        </h3>
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="text-health-subtle">
@@ -673,7 +716,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
             </tr>
           </thead>
           <tbody>
-            {history.map((row) => (
+            {history
+              .slice((historyPage - 1) * 25, historyPage * 25)
+              .map((row) => (
               <tr key={row.id} className="border-b border-health-border">
                 <td className="py-1 pr-3">{row.createdAt}</td>
                 <td className="py-1 pr-3">{row.kind}</td>
@@ -703,6 +748,32 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
             ))}
           </tbody>
         </table>
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <button
+            type="button"
+            className="app-btn-secondary"
+            disabled={historyPage <= 1}
+            onClick={() => setHistoryPage((page) => Math.max(1, page - 1))}
+          >
+            Previous
+          </button>
+          <span className="text-health-subtle">
+            Page {historyPage} of {Math.max(1, Math.ceil(history.length / 25))}{' '}
+            ({history.length} entries)
+          </span>
+          <button
+            type="button"
+            className="app-btn-secondary"
+            disabled={historyPage >= Math.max(1, Math.ceil(history.length / 25))}
+            onClick={() =>
+              setHistoryPage((page) =>
+                Math.min(Math.max(1, Math.ceil(history.length / 25)), page + 1),
+              )
+            }
+          >
+            Next
+          </button>
+        </div>
       </section>
     </div>
   );
