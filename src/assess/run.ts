@@ -56,43 +56,47 @@ export function parseAssessJson(stdout: string): {
   data: unknown;
   raw: string;
 } {
-  const start = stdout.lastIndexOf('{');
-  const end = stdout.lastIndexOf('}');
-  if (start === -1 || end <= start) {
-    return {
-      positive: false,
-      summary: stdout.trim().slice(0, 400) || 'no JSON output',
-      data: {},
-      raw: stdout.slice(0, 8000),
-    };
+  const candidates = jsonCandidates(stdout);
+  for (const raw of candidates) {
+    try {
+      const parsed = JSON.parse(raw) as {
+        positive?: unknown;
+        summary?: unknown;
+        data?: unknown;
+      };
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return {
+          positive: parsed.positive === true,
+          summary:
+            typeof parsed.summary === 'string' && parsed.summary
+              ? parsed.summary.slice(0, 500)
+              : parsed.positive === true
+                ? 'ok'
+                : 'failed',
+          data: parsed.data ?? {},
+          raw: raw.slice(0, 200_000),
+        };
+      }
+    } catch {
+      // try next candidate
+    }
   }
 
-  const raw = stdout.slice(start, end + 1);
-  try {
-    const parsed = JSON.parse(raw) as {
-      positive?: unknown;
-      summary?: unknown;
-      data?: unknown;
-    };
-    return {
-      positive: parsed.positive === true,
-      summary:
-        typeof parsed.summary === 'string' && parsed.summary
-          ? parsed.summary.slice(0, 500)
-          : parsed.positive === true
-            ? 'ok'
-            : 'failed',
-      data: parsed.data ?? {},
-      raw: raw.slice(0, 200_000),
-    };
-  } catch {
-    return {
-      positive: false,
-      summary: 'invalid JSON output',
-      data: {},
-      raw: raw.slice(0, 8000),
-    };
-  }
+  return {
+    positive: false,
+    summary: stdout.trim().slice(0, 400) || 'invalid JSON output',
+    data: {},
+    raw: stdout.slice(0, 8000),
+  };
+}
+
+function jsonCandidates(stdout: string): string[] {
+  const text = stdout.replace(/^\uFEFF/, '').trim();
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  const fromBraces =
+    start !== -1 && end > start ? text.slice(start, end + 1) : '';
+  return [fromBraces, text].filter((item) => item.length > 0);
 }
 
 function spawnWait(

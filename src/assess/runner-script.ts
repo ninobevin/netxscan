@@ -16,12 +16,15 @@ $result = Invoke-Command -ComputerName $ComputerName -ScriptBlock {
   Invoke-Expression $code
 } -ArgumentList $code, $NetxParams
 if ($null -eq $result) {
-  Write-Output '{"positive":false,"summary":"empty output","data":{}}'
+  [Console]::Out.Write('{"positive":false,"summary":"empty output","data":{}}')
   exit 0
+}
+if ($result -is [System.Array]) {
+  $result = ($result | ForEach-Object { [string]$_ }) -join ''
 }
 if ($result -is [string]) {
-  Write-Output $result
+  [Console]::Out.Write([string]$result)
   exit 0
 }
-$result | ConvertTo-Json -Compress -Depth 8
+[Console]::Out.Write(($result | ConvertTo-Json -Compress -Depth 8))
 `.trim();
