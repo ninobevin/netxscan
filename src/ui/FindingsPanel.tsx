@@ -66,9 +66,9 @@ export function FindingsPanel() {
     <section className="app-card overflow-x-auto">
       <h2 className="text-lg font-semibold">Findings</h2>
       <p className="mb-3 text-sm text-health-subtle">
-        Each row is a workstation. Each column is a control code. Green is
-        compliant, red is not. Click a cell for CVE matches (software-related
-        fails, when a CVE catalog is imported).
+        Click a cell for CVE IDs when installed software matched NVD CPE
+        version ranges (apps_known_cves). Sync the NVD catalog in Settings
+        first.
       </p>
       {detail ? (
         <p className="mb-3 text-sm">

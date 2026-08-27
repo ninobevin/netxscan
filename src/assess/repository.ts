@@ -373,6 +373,29 @@ export async function replaceBaselineFindings(
   }
 }
 
+export async function upsertBaselineCheck(
+  assetId: string,
+  checkId: string,
+  status: string,
+  detail: string,
+): Promise<void> {
+  const db = getDb();
+  await db.query(
+    `DELETE FROM baseline_findings WHERE asset_id = :assetId AND check_id = :checkId`,
+    { assetId, checkId },
+  );
+  await db.query(
+    `INSERT INTO baseline_findings (asset_id, check_id, status, detail)
+     VALUES (:assetId, :checkId, :status, :detail)`,
+    {
+      assetId,
+      checkId: checkId.slice(0, 80),
+      status: status.slice(0, 8),
+      detail: detail.slice(0, 500),
+    },
+  );
+}
+
 export async function listAllBaselineFindings(): Promise<
   Array<{ assetId: string; checkId: string; status: string; detail: string }>
 > {

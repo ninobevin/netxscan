@@ -584,6 +584,161 @@ const migrations: Migration[] = [
       )
     `,
   },
+  {
+    name: '029_nmap_scan_results',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS nmap_scan_results (
+        asset_id CHAR(36) NOT NULL,
+        payload_json MEDIUMTEXT NOT NULL,
+        ran_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (asset_id)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS nmap_scan_results (
+        asset_id TEXT NOT NULL PRIMARY KEY,
+        payload_json TEXT NOT NULL,
+        ran_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `,
+  },
+  {
+    name: '030_nvd_meta',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS nvd_meta (
+        name VARCHAR(64) NOT NULL,
+        value VARCHAR(500) NOT NULL,
+        PRIMARY KEY (name)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS nvd_meta (
+        name TEXT NOT NULL PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `,
+  },
+  {
+    name: '031_cpe_cache',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS cpe_cache (
+        keyword VARCHAR(80) NOT NULL,
+        cpe23 VARCHAR(255) NOT NULL,
+        cpe_prefix VARCHAR(160) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        vendor VARCHAR(80) NOT NULL,
+        product VARCHAR(80) NOT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (keyword)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS cpe_cache (
+        keyword TEXT NOT NULL PRIMARY KEY,
+        cpe23 TEXT NOT NULL,
+        cpe_prefix TEXT NOT NULL,
+        title TEXT NOT NULL,
+        vendor TEXT NOT NULL,
+        product TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `,
+  },
+  {
+    name: '032_nvd_cves',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS nvd_cves (
+        cve_id VARCHAR(32) NOT NULL,
+        description TEXT NOT NULL,
+        severity VARCHAR(16) NOT NULL,
+        cvss_score DECIMAL(3,1) NULL,
+        imported_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (cve_id)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS nvd_cves (
+        cve_id TEXT NOT NULL PRIMARY KEY,
+        description TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        cvss_score REAL,
+        imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `,
+  },
+  {
+    name: '033_nvd_cve_matches',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS nvd_cve_matches (
+        id BIGINT NOT NULL AUTO_INCREMENT,
+        cve_id VARCHAR(32) NOT NULL,
+        vendor VARCHAR(80) NOT NULL,
+        product VARCHAR(80) NOT NULL,
+        criteria VARCHAR(255) NOT NULL,
+        vulnerable TINYINT NOT NULL,
+        version_start_inc VARCHAR(64) NULL,
+        version_start_exc VARCHAR(64) NULL,
+        version_end_inc VARCHAR(64) NULL,
+        version_end_exc VARCHAR(64) NULL,
+        PRIMARY KEY (id),
+        KEY nvd_cve_matches_product (vendor, product),
+        KEY nvd_cve_matches_cve (cve_id)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS nvd_cve_matches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cve_id TEXT NOT NULL,
+        vendor TEXT NOT NULL,
+        product TEXT NOT NULL,
+        criteria TEXT NOT NULL,
+        vulnerable INTEGER NOT NULL,
+        version_start_inc TEXT,
+        version_start_exc TEXT,
+        version_end_inc TEXT,
+        version_end_exc TEXT
+      )
+    `,
+  },
+  {
+    name: '034_nvd_cve_matches_index',
+    mysql: null,
+    sqlite: `
+      CREATE INDEX IF NOT EXISTS nvd_cve_matches_product
+        ON nvd_cve_matches (vendor, product)
+    `,
+  },
+  {
+    name: '035_software_cve_hits',
+    mysql: `
+      CREATE TABLE IF NOT EXISTS software_cve_hits (
+        asset_id CHAR(36) NOT NULL,
+        product_name VARCHAR(191) NOT NULL,
+        product_version VARCHAR(64) NOT NULL,
+        cve_id VARCHAR(32) NOT NULL,
+        cvss_score DECIMAL(3,1) NULL,
+        severity VARCHAR(16) NOT NULL,
+        cpe23 VARCHAR(255) NOT NULL,
+        detail VARCHAR(500) NOT NULL,
+        collected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (asset_id, product_name, product_version, cve_id)
+      )
+    `,
+    sqlite: `
+      CREATE TABLE IF NOT EXISTS software_cve_hits (
+        asset_id TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        product_version TEXT NOT NULL,
+        cve_id TEXT NOT NULL,
+        cvss_score REAL,
+        severity TEXT NOT NULL,
+        cpe23 TEXT NOT NULL,
+        detail TEXT NOT NULL,
+        collected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (asset_id, product_name, product_version, cve_id)
+      )
+    `,
+  },
 ];
 
 export async function runMigrations(db: DbClient): Promise<void> {

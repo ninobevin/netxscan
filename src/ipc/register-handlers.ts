@@ -7,6 +7,7 @@ import { initializeDatabase } from '../db/client';
 import { loadDatabaseConfig } from '../db/load-config';
 import { runMigrations } from '../db/migrate';
 import { registerNmapIpc } from '../nmap/register-nmap-ipc';
+import { registerNvdIpc } from '../nvd/register-nvd-ipc';
 import { registerWinrmIpc } from '../winrm/register-winrm-ipc';
 import { registerAssessIpc } from '../assess/register-assess-ipc';
 import { registerFindingsIpc } from '../findings/register-findings-ipc';
@@ -23,6 +24,7 @@ export async function registerIpcHandlers(): Promise<void> {
   registerAuthIpc();
   registerAssetIpc();
   registerNmapIpc();
+  registerNvdIpc();
   registerWinrmIpc();
   registerAssessIpc();
   registerFindingsIpc();

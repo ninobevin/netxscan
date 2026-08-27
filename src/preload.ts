@@ -57,6 +57,16 @@ const api: NetXScanApi = Object.freeze({
     ipcRenderer.invoke(ipcChannels.scanAuthorizedRanges),
   runAuthorizedScan: (target) =>
     ipcRenderer.invoke(ipcChannels.scanRun, { target }),
+  runNmapProtocolScan: (id) =>
+    ipcRenderer.invoke(ipcChannels.nmapProtocolRun, { id }),
+  getNmapProtocolResult: (id) =>
+    ipcRenderer.invoke(ipcChannels.nmapProtocolGet, { id }),
+  getNvdStatus: () => ipcRenderer.invoke(ipcChannels.nvdStatus),
+  saveNvdApiKey: (apiKey) =>
+    ipcRenderer.invoke(ipcChannels.nvdSaveKey, { apiKey }),
+  syncNvdCatalog: () => ipcRenderer.invoke(ipcChannels.nvdSync),
+  getSoftwareCveHits: (id) =>
+    ipcRenderer.invoke(ipcChannels.nvdSoftwareHits, { id }),
   onScanHostFound: (listener) => {
     const wrapped = (_event: unknown, asset: Asset) => {
       listener(asset);

@@ -21,16 +21,20 @@ import {
 } from '../winrm/service';
 import { endAssess, tryStartAssess } from './lock';
 import { parseAssessJson, runRemoteScript } from './run';
+import { evaluateInstalledSoftware, packagesFromPayload } from '../nvd/match';
+import { listSoftwareHits } from '../nvd/repository';
 import {
   deleteCustomModule,
   getHistoryById,
   getModuleById,
+  getModuleBySlug,
   getResult,
   insertHistory,
   listHistory,
   listModules,
   replaceBaselineFindings,
   saveCustomModule,
+  upsertBaselineCheck,
   upsertResult,
 } from './repository';
 
@@ -376,6 +380,53 @@ async function executeRun(
     if (kind === 'assess' && module.slug === 'security_baseline') {
       const findings = extractFindings(parsed.data);
       await replaceBaselineFindings(assetId, findings);
+      const softwareModule = await getModuleBySlug('installed_software');
+      const inventory = softwareModule
+        ? await getResult(assetId, softwareModule.id)
+        : undefined;
+      if (inventory) {
+        const hits = await listSoftwareHits(assetId);
+        const fail = hits.length > 0;
+        await upsertBaselineCheck(
+          assetId,
+          'apps_known_cves',
+          fail ? 'fail' : 'pass',
+          fail
+            ? hits
+                .slice(0, 8)
+                .map(
+                  (hit) =>
+                    `${hit.productName} ${hit.productVersion} ${hit.cveId}`,
+                )
+                .join('; ')
+            : 'No NVD CPE version-range matches in the local catalog',
+        );
+      }
+    }
+    if (kind === 'assess' && module.slug === 'installed_software') {
+      try {
+        const hits = await evaluateInstalledSoftware(
+          assetId,
+          packagesFromPayload(payloadJson),
+        );
+        const fail = hits.length > 0;
+        await upsertBaselineCheck(
+          assetId,
+          'apps_known_cves',
+          fail ? 'fail' : 'pass',
+          fail
+            ? hits
+                .slice(0, 8)
+                .map(
+                  (hit) =>
+                    `${hit.productName} ${hit.productVersion} ${hit.cveId}`,
+                )
+                .join('; ')
+            : 'No NVD CPE version-range matches in the local catalog',
+        );
+      } catch {
+        // Catalog match must not fail the inventory run.
+      }
     }
     let historyId = '';
     if (module.slug === 'security_baseline') {

@@ -7,23 +7,19 @@ import {
   type AssetType,
 } from '../shared/asset-types';
 import type { WinrmAction } from '../shared/winrm-types';
+import {
+  AssetFilterBar,
+  EMPTY_ASSET_FILTERS,
+  filterAssets,
+  filterCatalog,
+  typeLabel,
+  type AssetFilters,
+} from './asset-filters';
 import { BusyButton } from './BusyButton';
 
 const PAGE_SIZE_MIN = 5;
 const PAGE_SIZE_MAX = 200;
 const PAGE_SIZE_DEFAULT = 25;
-
-function typeLabel(type: AssetType): string {
-  if (type === 'virtual_server') {
-    return 'Virtual server';
-  }
-
-  if (type === 'network_device') {
-    return 'Network device';
-  }
-
-  return type.charAt(0).toUpperCase() + type.slice(1);
-}
 
 function errorText(error: string): string {
   if (error === 'forbidden') {
@@ -136,6 +132,7 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
   const [winrmActiveId, setWinrmActiveId] = useState<string | null>(null);
   const [winrmBusy, setWinrmBusy] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [filters, setFilters] = useState<AssetFilters>(EMPTY_ASSET_FILTERS);
 
   const loadAssets = async () => {
     const result = await window.netxscan.listAssets(false);
@@ -196,7 +193,20 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
     });
   }, []);
 
-  const pageCount = Math.max(1, Math.ceil(assets.length / pageSize));
+  const filteredAssets = useMemo(
+    () => filterAssets(assets, filters),
+    [assets, filters],
+  );
+  const catalog = useMemo(
+    () => filterCatalog(groups, locations, assets),
+    [assets, groups, locations],
+  );
+
+  const pageCount = Math.max(1, Math.ceil(filteredAssets.length / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
 
   useEffect(() => {
     if (page > pageCount) {
@@ -206,8 +216,8 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
 
   const pageAssets = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return assets.slice(start, start + pageSize);
-  }, [assets, page, pageSize]);
+    return filteredAssets.slice(start, start + pageSize);
+  }, [filteredAssets, page, pageSize]);
 
   const pageIds = pageAssets.map((asset) => asset.id);
   const allPageSelected =
@@ -523,9 +533,21 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
 
       <section className="app-card overflow-x-auto">
         <h2 className="text-lg font-semibold">Assets</h2>
+        <div className="mb-4">
+          <AssetFilterBar
+            filters={filters}
+            onChange={setFilters}
+            groups={catalog.groups}
+            locations={catalog.locations}
+          />
+        </div>
         {assets.length === 0 ? (
           <p className="text-sm text-health-subtle">
             No assets yet. Run a scan to add hosts from the network.
+          </p>
+        ) : filteredAssets.length === 0 ? (
+          <p className="text-sm text-health-subtle">
+            No assets match the selected filters.
           </p>
         ) : (
           <>
@@ -685,7 +707,7 @@ export function DiscoveryAssets({ canScan }: DiscoveryAssetsProps) {
                 Previous
               </button>
               <span className="text-health-subtle">
-                Page {page} of {pageCount} ({assets.length} assets)
+                Page {page} of {pageCount} ({filteredAssets.length} assets)
               </span>
               <button
                 type="button"

@@ -17,6 +17,15 @@ import type {
   AssessmentHistoryRow,
   AssessmentModule,
 } from '../shared/assess-types';
+import type { SoftwareCveHit } from '../shared/nvd-types';
+import {
+  AssetFilterBar,
+  AssetSelect,
+  EMPTY_ASSET_FILTERS,
+  filterAssets,
+  filterCatalog,
+  type AssetFilters,
+} from './asset-filters';
 import { BusyButton } from './BusyButton';
 
 type Finding = {
@@ -113,10 +122,18 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
   );
   const [customRemediate, setCustomRemediate] = useState('');
   const [customReverse, setCustomReverse] = useState('');
+  const [filters, setFilters] = useState<AssetFilters>(EMPTY_ASSET_FILTERS);
+  const [groups, setGroups] = useState<string[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
+  const [softwareHits, setSoftwareHits] = useState<SoftwareCveHit[]>([]);
 
-  const manageable = useMemo(
-    () => assets.filter((asset) => asset.winrmManageable === true),
-    [assets],
+  const filtered = useMemo(
+    () => filterAssets(assets, filters),
+    [assets, filters],
+  );
+  const catalog = useMemo(
+    () => filterCatalog(groups, locations, assets),
+    [assets, groups, locations],
   );
 
   const bySlug = (slug: string) =>
@@ -128,6 +145,14 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
     const listed = await window.netxscan.listAssets(false);
     if (listed.ok) {
       setAssets(listed.assets);
+    }
+    const loc = await window.netxscan.listLocations();
+    if (loc.ok) {
+      setLocations(loc.locations);
+    }
+    const grp = await window.netxscan.listGroups();
+    if (grp.ok) {
+      setGroups(grp.groups);
     }
     const mods = await window.netxscan.listAssessModules();
     if (mods.ok) {
@@ -141,6 +166,12 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
     void load();
   }, []);
 
+  useEffect(() => {
+    if (selected && !filtered.some((asset) => asset.id === selected.id)) {
+      setSelected(null);
+    }
+  }, [filtered, selected]);
+
   const refreshHost = async (asset: Asset, list: AssessmentModule[]) => {
     const next: Record<string, string | null> = {};
     for (const module of list) {
@@ -152,6 +183,8 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
     if (hist.ok) {
       setHistory(hist.rows);
     }
+    const vulns = await window.netxscan.getSoftwareCveHits(asset.id);
+    setSoftwareHits(vulns.ok ? vulns.hits : []);
   };
 
   const openHost = async (asset: Asset) => {
@@ -235,53 +268,43 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
     );
   }
 
-  if (!selected) {
-    return (
-      <section className="app-card overflow-x-auto">
-        <h2 className="text-lg font-semibold">Security assessment</h2>
+  const picker = (
+    <section className="app-card grid gap-4">
+      <h2 className="text-lg font-semibold">Security assessment</h2>
+      <p className="text-sm text-health-subtle">
+        Filter assets, then choose a host. Assessments require WinRM (managed).
+      </p>
+      <AssetFilterBar
+        filters={filters}
+        onChange={setFilters}
+        groups={catalog.groups}
+        locations={catalog.locations}
+      />
+      <AssetSelect
+        assets={filtered}
+        value={selected?.id ?? ''}
+        onChange={(id) => {
+          const asset = filtered.find((item) => item.id === id);
+          if (asset) {
+            void openHost(asset);
+            return;
+          }
+          setSelected(null);
+        }}
+      />
+      {message && !selected ? (
+        <p className="text-sm text-health-danger">{message}</p>
+      ) : null}
+      {filtered.length === 0 ? (
         <p className="text-sm text-health-subtle">
-          Click a WinRM-manageable workstation to open its findings, software,
-          updates, firewall, users, and domain controller.
+          No assets match the selected filters.
         </p>
-        {message ? (
-          <p className="text-sm text-health-danger">{message}</p>
-        ) : null}
-        {manageable.length === 0 ? (
-          <p className="text-sm text-health-subtle">
-            No manageable hosts yet. Enable WinRM from Discovery and Asset.
-          </p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-health-border text-health-subtle">
-                <th className="py-2 pr-3 font-medium">Hostname</th>
-                <th className="py-2 pr-3 font-medium">IP</th>
-                <th className="py-2 font-medium">Group</th>
-              </tr>
-            </thead>
-            <tbody>
-              {manageable.map((asset) => (
-                <tr key={asset.id} className="border-b border-health-border">
-                  <td className="py-2 pr-3">
-                    <button
-                      type="button"
-                      className="text-health-accent"
-                      onClick={() => {
-                        void openHost(asset);
-                      }}
-                    >
-                      {asset.hostname}
-                    </button>
-                  </td>
-                  <td className="py-2 pr-3">{asset.ipAddress ?? '—'}</td>
-                  <td className="py-2">{asset.assetGroup ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    );
+      ) : null}
+    </section>
+  );
+
+  if (!selected) {
+    return picker;
   }
 
   const baseline = bySlug('security_baseline');
@@ -298,6 +321,8 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
   const packages = (
     payloadData(software ? results[software.id] ?? null : null).packages ?? []
   ) as PackageRow[];
+  const osInfo = payloadData(software ? results[software.id] ?? null : null)
+    .os as { product?: string; version?: string; build?: string } | undefined;
   const missing = (
     payloadData(updates ? results[updates.id] ?? null : null).missing ?? []
   ) as Array<{ title?: string }>;
@@ -322,14 +347,8 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
 
   return (
     <div className="grid gap-6">
+      {picker}
       <section className="app-card">
-        <button
-          type="button"
-          className="mb-2 text-sm text-health-accent"
-          onClick={() => setSelected(null)}
-        >
-          Back to workstations
-        </button>
         <h2 className="text-lg font-semibold">
           {selected.hostname}
           {selected.ipAddress ? ` (${selected.ipAddress})` : ''}
@@ -391,9 +410,36 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
                 void run(software);
               }}
             >
-              Get
-            </BusyButton>
+            Get
+          </BusyButton>
           </div>
+          {osInfo?.product ? (
+            <p className="mb-3 text-sm text-health-subtle">
+              OS: {osInfo.product}
+              {osInfo.version ? ` · ${osInfo.version}` : ''}
+              {osInfo.build ? ` · build ${osInfo.build}` : ''}
+            </p>
+          ) : null}
+          {softwareHits.length > 0 ? (
+            <div className="mb-4 grid gap-2">
+              {softwareHits.map((hit) => (
+                <p
+                  key={`${hit.productName}-${hit.cveId}`}
+                  className="text-sm text-health-danger"
+                >
+                  [FAIL] Vulnerable application detected · Product:{' '}
+                  {hit.productName} · Version: {hit.productVersion} · CVE:{' '}
+                  {hit.cveId} · CVSS: {hit.cvss ?? 'n/a'} · Severity:{' '}
+                  {hit.severity} · Status: Vulnerable
+                </p>
+              ))}
+            </div>
+          ) : packages.length > 0 ? (
+            <p className="mb-3 text-sm text-health-subtle">
+              No version-range CVE matches in the local NVD catalog. Sync the
+              catalog in Settings after inventory.
+            </p>
+          ) : null}
           {packages.length === 0 ? (
             <p className="text-sm text-health-subtle">No inventory yet.</p>
           ) : (

@@ -175,6 +175,8 @@ export async function deleteAsset(id: string): Promise<Asset | undefined> {
     'DELETE FROM assessment_history WHERE asset_id = :id',
     'DELETE FROM assessment_results WHERE asset_id = :id',
     'DELETE FROM baseline_findings WHERE asset_id = :id',
+    'DELETE FROM nmap_scan_results WHERE asset_id = :id',
+    'DELETE FROM software_cve_hits WHERE asset_id = :id',
   ];
 
   for (const sql of statements) {

@@ -241,7 +241,22 @@ foreach ($path in $paths) {
     }
   }
 }
-@{ positive = $true; summary = "$($pkgs.Count) package(s)"; data = @{ packages = $pkgs } } | ConvertTo-Json -Compress -Depth 6
+$os = $null
+try {
+  $os = Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsBuildNumber
+} catch {}
+@{
+  positive = $true
+  summary = "$($pkgs.Count) package(s)"
+  data = @{
+    packages = $pkgs
+    os = @{
+      product = [string]$os.WindowsProductName
+      version = [string]$os.WindowsVersion
+      build = [string]$os.OsBuildNumber
+    }
+  }
+} | ConvertTo-Json -Compress -Depth 6
 `.trim();
 
 export const SOFTWARE_REMEDIATE = `

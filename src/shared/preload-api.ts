@@ -24,6 +24,13 @@ import type {
   ResultGetResult,
 } from './assess-types';
 import type { FindingsMatrixResult } from './findings-types';
+import type { NmapProtocolResult } from './nmap-types';
+import type {
+  NvdSaveKeyResult,
+  NvdStatusResult,
+  NvdSyncResult,
+  SoftwareCveHitsResult,
+} from './nvd-types';
 import type {
   WinrmAction,
   WinrmBatchResult,
@@ -80,6 +87,12 @@ export type NetXScanApi = {
   getAuthorizedRanges: () => Promise<AuthorizedRangesResult>;
   runAuthorizedScan: (target: string) => Promise<AuthorizedScanResult>;
   onScanHostFound: (listener: (asset: Asset) => void) => () => void;
+  runNmapProtocolScan: (id: string) => Promise<NmapProtocolResult>;
+  getNmapProtocolResult: (id: string) => Promise<NmapProtocolResult>;
+  getNvdStatus: () => Promise<NvdStatusResult>;
+  saveNvdApiKey: (apiKey: string) => Promise<NvdSaveKeyResult>;
+  syncNvdCatalog: () => Promise<NvdSyncResult>;
+  getSoftwareCveHits: (id: string) => Promise<SoftwareCveHitsResult>;
   getCompanyProfile: () => Promise<CompanyProfileResult>;
   saveCompanyName: (companyName: string) => Promise<CompanyProfileResult>;
   uploadCompanyLogo: () => Promise<CompanyProfileResult>;

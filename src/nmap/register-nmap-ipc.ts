@@ -1,22 +1,27 @@
 import { app, ipcMain } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import path from 'node:path';
-import { upsertPingHost } from '../assets/repository';
+import { getAssetById, upsertPingHost } from '../assets/repository';
+import { parseAssetId } from '../assets/validate';
 import { requireRole, requireSession } from '../auth/session';
 import { markAssetsSeenInScan, recordScan } from './scan-history';
 import { writeAudit } from '../audit/repository';
 import { ipcChannels } from '../shared/ipc-channels';
+import type { NmapProtocolResult } from '../shared/nmap-types';
 import type {
   AuthorizedRangesResult,
   AuthorizedScanResult,
 } from '../shared/scan-types';
 import {
   expandTargetToHostIps,
+  ipv4ToInt,
   isTargetAuthorized,
   parseAuthorizedTarget,
 } from './authorize';
 import { loadAuthorizedRanges } from './load-ranges';
 import { pingAddresses } from './ping-hostname';
+import { resolveNmapPath, runProtocolScan } from './protocol-scan';
+import { getNmapResult, saveNmapResult } from './results';
 import { endScan, tryStartScan } from './scan-lock';
 
 function configPath(): string {
@@ -133,6 +138,95 @@ export function registerNmapIpc(): void {
           savedCount: upHosts.length,
         };
       } catch {
+        return { ok: false, error: 'scan_failed' };
+      } finally {
+        endScan();
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.nmapProtocolGet,
+    async (_event, payload: unknown): Promise<NmapProtocolResult> => {
+      const denied = requireAdministrator();
+      if (denied && !denied.ok) {
+        return { ok: false, error: denied.error };
+      }
+
+      const id = parseAssetId(payload);
+      if (!id) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      try {
+        const result = await getNmapResult(id);
+        return { ok: true, result };
+      } catch {
+        return { ok: false, error: 'scan_failed' };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    ipcChannels.nmapProtocolRun,
+    async (_event, payload: unknown): Promise<NmapProtocolResult> => {
+      const denied = requireAdministrator();
+      if (denied && !denied.ok) {
+        return { ok: false, error: denied.error };
+      }
+
+      const id = parseAssetId(payload);
+      if (!id) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      let asset;
+      try {
+        asset = await getAssetById(id);
+      } catch {
+        return { ok: false, error: 'scan_failed' };
+      }
+      if (!asset) {
+        return { ok: false, error: 'not_found' };
+      }
+
+      const ip = asset.ipAddress?.trim() ?? '';
+      if (ipv4ToInt(ip) === null) {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      let ranges: string[];
+      try {
+        ranges = await loadAuthorizedRanges(configPath());
+      } catch {
+        return { ok: false, error: 'invalid_input' };
+      }
+
+      if (!isTargetAuthorized(ip, ranges)) {
+        return { ok: false, error: 'not_authorized_range' };
+      }
+
+      const nmapPath = resolveNmapPath();
+      if (!nmapPath) {
+        return { ok: false, error: 'nmap_missing' };
+      }
+
+      if (!tryStartScan()) {
+        return { ok: false, error: 'scan_in_progress' };
+      }
+
+      try {
+        const result = await runProtocolScan(nmapPath, ip, asset.hostname);
+        await saveNmapResult(asset.id, result);
+        await writeAudit(
+          'nmap_protocol_scan',
+          `${asset.hostname} ${ip}`.slice(0, 500),
+        );
+        return { ok: true, result };
+      } catch (error) {
+        if (error instanceof Error && error.message === 'nmap_missing') {
+          return { ok: false, error: 'nmap_missing' };
+        }
         return { ok: false, error: 'scan_failed' };
       } finally {
         endScan();
