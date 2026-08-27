@@ -241,9 +241,20 @@ foreach ($path in $paths) {
     }
   }
 }
-$os = $null
+$osProduct = ''
+$osVersion = ''
+$osBuild = ''
 try {
-  $os = Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsBuildNumber
+  $cv = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+  $osProduct = [string]$cv.ProductName
+  $osVersion = [string]$cv.DisplayVersion
+  $buildNum = 0
+  [void][int]::TryParse([string]$cv.CurrentBuild, [ref]$buildNum)
+  if ($buildNum -ge 22000 -and $osProduct -match 'Windows 10') {
+    $osProduct = $osProduct -replace 'Windows 10', 'Windows 11'
+  }
+  $ubr = [string]$cv.UBR
+  $osBuild = if ($ubr) { "$($cv.CurrentBuild).$ubr" } else { [string]$cv.CurrentBuild }
 } catch {}
 @{
   positive = $true
@@ -251,9 +262,9 @@ try {
   data = @{
     packages = $pkgs
     os = @{
-      product = [string]$os.WindowsProductName
-      version = [string]$os.WindowsVersion
-      build = [string]$os.OsBuildNumber
+      product = $osProduct
+      version = $osVersion
+      build = $osBuild
     }
   }
 } | ConvertTo-Json -Compress -Depth 6
