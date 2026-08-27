@@ -15,6 +15,7 @@ export type SoftwareCveHit = {
   severity: string;
   cpe23: string;
   detail: string;
+  description: string | null;
 };
 
 export type NvdStatus = {

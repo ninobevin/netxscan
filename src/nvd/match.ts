@@ -66,6 +66,7 @@ export async function evaluateInstalledSoftware(
         severity: match.severity,
         cpe23: cpe.cpe23,
         detail: `${match.cveId} CVSS ${cvssLabel} ${match.severity} · ${name} ${version} in affected range`,
+        description: match.description || null,
       });
     }
   }

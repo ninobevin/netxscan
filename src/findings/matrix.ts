@@ -31,7 +31,11 @@ export async function buildFindingsMatrix(): Promise<FindingsMatrix> {
         check.id === 'apps_known_cves' && status === 'fail'
           ? (cveByAsset.get(asset.id) ?? [])
           : [];
-      cells[asset.id][check.id] = { status, cveIds };
+      cells[asset.id][check.id] = {
+        status,
+        detail: found?.detail ?? '',
+        cveIds,
+      };
     }
   }
 

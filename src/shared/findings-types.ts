@@ -1,5 +1,6 @@
 export type FindingCell = {
   status: string | null;
+  detail: string;
   cveIds: string[];
 };
 

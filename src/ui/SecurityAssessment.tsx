@@ -126,6 +126,7 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
   const [groups, setGroups] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [softwareHits, setSoftwareHits] = useState<SoftwareCveHit[]>([]);
+  const [cvePackageKey, setCvePackageKey] = useState<string | null>(null);
 
   const filtered = useMemo(
     () => filterAssets(assets, filters),
@@ -420,26 +421,9 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
               {osInfo.build ? ` · build ${osInfo.build}` : ''}
             </p>
           ) : null}
-          {softwareHits.length > 0 ? (
-            <div className="mb-4 grid gap-2">
-              {softwareHits.map((hit) => (
-                <p
-                  key={`${hit.productName}-${hit.cveId}`}
-                  className="text-sm text-health-danger"
-                >
-                  [FAIL] Vulnerable application detected · Product:{' '}
-                  {hit.productName} · Version: {hit.productVersion} · CVE:{' '}
-                  {hit.cveId} · CVSS: {hit.cvss ?? 'n/a'} · Severity:{' '}
-                  {hit.severity} · Status: Vulnerable
-                </p>
-              ))}
-            </div>
-          ) : packages.length > 0 ? (
-            <p className="mb-3 text-sm text-health-subtle">
-              No version-range CVE matches in the local NVD catalog. Sync the
-              catalog in Settings after inventory.
-            </p>
-          ) : null}
+          <p className="mb-3 text-sm text-health-subtle">
+            Highlighted names have a catalog CVE. Click the name for details.
+          </p>
           {packages.length === 0 ? (
             <p className="text-sm text-health-subtle">No inventory yet.</p>
           ) : (
@@ -452,14 +436,66 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
                 </tr>
               </thead>
               <tbody>
-                {packages.slice(0, 200).map((pkg) => (
-                  <tr
-                    key={`${pkg.name}-${pkg.uninstallKey}`}
-                    className="border-b border-health-border"
-                  >
-                    <td className="py-1 pr-3">{pkg.name}</td>
-                    <td className="py-1 pr-3">{pkg.version ?? '—'}</td>
-                    <td className="py-1">
+                {packages.slice(0, 200).map((pkg) => {
+                  const pkgKey = `${pkg.name}|${pkg.uninstallKey ?? ''}|${pkg.version ?? ''}`;
+                  const cves = softwareHits.filter(
+                    (hit) =>
+                      hit.productName === pkg.name &&
+                      (!pkg.version || hit.productVersion === pkg.version),
+                  );
+                  const flagged = cves.length > 0;
+                  const open = cvePackageKey === pkgKey;
+                  return (
+                    <tr
+                      key={pkgKey}
+                      className={
+                        flagged
+                          ? 'border-b border-health-border bg-health-danger/10'
+                          : 'border-b border-health-border'
+                      }
+                    >
+                      <td className="py-1 pr-3">
+                        {flagged ? (
+                          <button
+                            type="button"
+                            className="text-left font-medium text-health-danger underline-offset-2 hover:underline"
+                            onClick={() =>
+                              setCvePackageKey(open ? null : pkgKey)
+                            }
+                          >
+                            {pkg.name}
+                          </button>
+                        ) : (
+                          pkg.name
+                        )}
+                        {open ? (
+                          <div className="mt-2 grid max-w-xl gap-3 rounded-lg border border-health-border bg-health-surface p-3">
+                            {cves.map((hit) => (
+                              <article key={hit.cveId} className="grid gap-1">
+                                <p className="font-medium">{hit.cveId}</p>
+                                <p className="text-health-subtle">
+                                  CVSS {hit.cvss ?? 'n/a'} · {hit.severity}
+                                </p>
+                                <p>
+                                  {hit.description?.trim() || hit.detail}
+                                </p>
+                                <p className="text-xs text-health-subtle">
+                                  {hit.cpe23}
+                                </p>
+                              </article>
+                            ))}
+                            <button
+                              type="button"
+                              className="text-left text-health-accent"
+                              onClick={() => setCvePackageKey(null)}
+                            >
+                              Close
+                            </button>
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="py-1 pr-3 align-top">{pkg.version ?? '—'}</td>
+                      <td className="py-1 align-top">
                       <BusyButton
                         className="mr-3 text-health-danger"
                         busy={
@@ -504,7 +540,8 @@ export function SecurityAssessment({ canRun }: SecurityAssessmentProps) {
                       </BusyButton>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}

@@ -229,9 +229,12 @@ export async function listSoftwareHits(
 ): Promise<SoftwareCveHit[]> {
   const db = getDb();
   const [rows] = await db.query(
-    `SELECT product_name, product_version, cve_id, cvss_score, severity, cpe23, detail
-     FROM software_cve_hits WHERE asset_id = :assetId
-     ORDER BY cvss_score DESC, cve_id`,
+    `SELECT h.product_name, h.product_version, h.cve_id, h.cvss_score, h.severity, h.cpe23, h.detail,
+            c.description
+     FROM software_cve_hits h
+     LEFT JOIN nvd_cves c ON c.cve_id = h.cve_id
+     WHERE h.asset_id = :assetId
+     ORDER BY h.cvss_score DESC, h.cve_id`,
     { assetId },
   );
   return (
@@ -243,6 +246,7 @@ export async function listSoftwareHits(
       severity: string;
       cpe23: string;
       detail: string;
+      description: string | null;
     }>
   ).map((row) => ({
     productName: row.product_name,
@@ -255,6 +259,7 @@ export async function listSoftwareHits(
     severity: row.severity,
     cpe23: row.cpe23,
     detail: row.detail,
+    description: row.description,
   }));
 }
 
