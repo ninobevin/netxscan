@@ -1,8 +1,11 @@
 import { spawn } from 'node:child_process';
+import { nmapExecutable } from './nmap-path';
 
 function runNmap(ipv4: string): Promise<string> {
   return new Promise((resolve) => {
-    const child = spawn('nmap', ['-sn', '-n', ipv4], { windowsHide: true });
+    const child = spawn(nmapExecutable(), ['-sn', '-n', ipv4], {
+      windowsHide: true,
+    });
     let stdout = '';
     const timer = setTimeout(() => {
       child.kill();

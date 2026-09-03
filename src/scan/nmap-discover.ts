@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { nmapExecutable } from './nmap-path';
 
 export type DiscoveredHost = {
   ipv4: string;
@@ -19,6 +20,18 @@ export function nmapTargetSpec(input: string): string {
 }
 
 export function parseNmapReportLine(line: string): DiscoveredHost | null {
+  const grepable = line.match(
+    /^Host:\s+(\d{1,3}(?:\.\d{1,3}){3})\s+\(([^)]*)\)\s+Status:\s+Up\b/i,
+  );
+  if (grepable) {
+    const ipv4 = grepable[1];
+    const label = grepable[2].trim();
+    return {
+      ipv4,
+      hostname: !label || label === ipv4 ? null : label,
+    };
+  }
+
   const named = line.match(
     /Nmap scan report for (.+?) \((\d{1,3}(?:\.\d{1,3}){3})\)/i,
   );
@@ -47,8 +60,17 @@ export function discoverHostsWithNmap(
 ): Promise<{ live: number }> {
   return new Promise((resolve, reject) => {
     const child = spawn(
-      'nmap',
-      ['-sn', '-PR', '-PS80,443,445,3389', '--max-retries', '1', targetSpec],
+      nmapExecutable(),
+      [
+        '-sn',
+        '-PE',
+        '-PS80,443,445,3389',
+        '--max-retries',
+        '1',
+        '-oG',
+        '-',
+        targetSpec,
+      ],
       { windowsHide: true },
     );
     let buffer = '';

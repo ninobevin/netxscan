@@ -81,7 +81,7 @@ Other feature IPC requires an active session. Mutating asset/category/WinRM hand
 
 - User enters a **single IP**, **hostname**, **CIDR**, or **IP range**. **No authorized-network allowlist.**
 - **Quick scan:** Main expands IPv4 targets and pings with Windows **`ping -a`** (concurrency cap).
-- **Deep scan:** One **nmap** host-discovery process (`-sn`, ARP + TCP ping probes). Finds hosts that do not answer ICMP. No port scan, OS, or MAC. nmap must be on PATH.
+- **Deep scan:** One **nmap** host-discovery process (`-sn`, ICMP echo plus TCP probes on 80/443/445/3389). Finds hosts that do not answer ICMP when those ports answer. No port scan, OS, or MAC. Uses `nmap.exe` from PATH or `C:\Program Files (x86)\Nmap`.
 - Live hosts are pushed to the UI (`scan:host-found`) with IP and hostname only.
 - Hostname: from `ping -a` on Quick; from nmap PTR/name on Deep when present; otherwise show the IP.
 - Scan results are **session memory only**. Closing the view or running a new scan replaces the list. **Nothing is written to SQLite until the user adds to Asset Manager.**
