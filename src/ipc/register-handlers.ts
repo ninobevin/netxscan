@@ -1,63 +1,31 @@
 import { app, ipcMain } from 'electron';
 import path from 'node:path';
-import { registerAssetIpc } from '../assets/register-asset-ipc';
-import { registerAuthIpc, requireSession } from '../auth/register-auth-ipc';
-import { initializeUserStore } from '../auth/user-store';
 import { initializeDatabase } from '../db/client';
-import { loadDatabaseConfig } from '../db/load-config';
 import { runMigrations } from '../db/migrate';
-import { registerNmapIpc } from '../nmap/register-nmap-ipc';
-import { registerNvdIpc } from '../nvd/register-nvd-ipc';
-import { registerWinrmIpc } from '../winrm/register-winrm-ipc';
-import { registerAssessIpc } from '../assess/register-assess-ipc';
-import { registerFindingsIpc } from '../findings/register-findings-ipc';
-import { seedBuiltinModules } from '../assess/seed';
-import { registerCompanyIpc } from '../company/register-company-ipc';
-import { registerAuditIpc } from '../audit/register-audit-ipc';
-import type { DatabaseStatus } from '../shared/database-status';
-import { classifyDatabaseError } from '../shared/database-status';
+import { registerAuthIpc } from '../auth/register-auth-ipc';
+import { registerScanIpc } from '../scan/register-scan-ipc';
+import { registerAssetIpc } from '../assets/register-asset-ipc';
+import { requireSession } from '../auth/session';
+import { errorMessage } from './error-message';
 import { ipcChannels } from '../shared/ipc-channels';
-
-let databaseStatus: DatabaseStatus = { ok: false, reason: 'unknown' };
 
 export async function registerIpcHandlers(): Promise<void> {
   registerAuthIpc();
+  registerScanIpc();
   registerAssetIpc();
-  registerNmapIpc();
-  registerNvdIpc();
-  registerWinrmIpc();
-  registerAssessIpc();
-  registerFindingsIpc();
-  registerCompanyIpc();
-  registerAuditIpc();
-
-  ipcMain.handle(ipcChannels.getDatabaseStatus, () => databaseStatus);
 
   ipcMain.handle(ipcChannels.ping, () => {
-    requireSession();
-    return 'pong';
+    try {
+      requireSession();
+      return 'pong';
+    } catch (error) {
+      throw new Error(errorMessage(error));
+    }
   });
 
-  ipcMain.handle(ipcChannels.getAppVersion, () => {
-    requireSession();
-    return app.getVersion();
-  });
+  ipcMain.handle(ipcChannels.getAppVersion, () => app.getVersion());
 
-  try {
-    const config = await loadDatabaseConfig(
-      path.join(app.getPath('userData'), 'database.json'),
-    );
-    const db = await initializeDatabase(config);
-    await runMigrations(db);
-    await seedBuiltinModules();
-    await initializeUserStore();
-    databaseStatus = { ok: true };
-  } catch (error) {
-    databaseStatus = classifyDatabaseError(error);
-    const code =
-      error && typeof error === 'object' && 'code' in error
-        ? String(error.code)
-        : 'UNKNOWN';
-    console.error(`Database startup failed (${code}).`);
-  }
+  const dbPath = path.join(app.getPath('userData'), 'netxscan.sqlite');
+  const db = await initializeDatabase(dbPath);
+  runMigrations(db);
 }

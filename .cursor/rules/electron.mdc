@@ -1,0 +1,21 @@
+---
+description: Electron window and process isolation
+globs: src/main.ts,src/preload.ts,forge.config.ts
+alwaysApply: false
+---
+
+# Electron
+
+BrowserWindow must use:
+
+- `preload` script
+- `contextIsolation: true`
+- `nodeIntegration: false`
+- `sandbox: true`
+- `webSecurity: true`
+
+Do not enable `remote` or `nodeIntegrationInWorker`. Preload only imports `electron` (`contextBridge`, `ipcRenderer`) and `src/shared` types/constants.
+
+`registerIpcHandlers()` runs on `app.ready` before `createWindow()`. Keep the window create path even if handlers are only `ping` and `getAppVersion`.
+
+Load the Vite dev URL in development; load packaged `index.html` in production. After main/preload IPC changes, the Forge process needs `rs` to reload main.

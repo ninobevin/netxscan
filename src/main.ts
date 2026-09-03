@@ -12,8 +12,8 @@ nativeTheme.themeSource = 'light';
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
-    width: 960,
-    height: 640,
+    width: 1200,
+    height: 800,
     title: 'NetXScan',
     backgroundColor: '#f4fafa',
     webPreferences: {
@@ -42,7 +42,7 @@ app.on('ready', () => {
 });
 
 app.on('window-all-closed', () => {
-  void closeDatabase();
+  closeDatabase();
   if (process.platform !== 'darwin') {
     app.quit();
   }

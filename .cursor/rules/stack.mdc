@@ -1,0 +1,21 @@
+---
+description: NetXScan stack and greenfield rebuild
+alwaysApply: true
+---
+
+# Stack
+
+Electron Forge + Vite + React + TypeScript + Tailwind. Desktop app. Renderer has no Node.
+
+Keep this layout:
+
+- `src/main.ts` — BrowserWindow, register IPC, then show the window
+- `src/preload.ts` — `contextBridge` only
+- `src/ipc/register-handlers.ts` — register all `ipcMain` handlers
+- `src/shared/ipc-channels.ts` — channel name constants
+- `src/shared/preload-api.ts` — `NetXScanApi` and `window.netxscan`
+- `src/renderer.tsx` + `src/ui/` + `src/index.css`
+
+Do not put Node, `fs`, `child_process`, DB, or Electron APIs in React. Do not use `nodeIntegration`. Do not call `ipcRenderer` from `src/ui/`.
+
+This is a rebuild. Add domains one at a time: channel → preload type → handler → UI. Current product: auth, scan, and assets per `docs/product-context.md`. Do not restore nmap, NVD, assessment scripts, findings, company, or audit unless asked.

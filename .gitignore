@@ -94,7 +94,7 @@ typings/
 # Electron-Forge
 out/
 
-# Local MySQL / SQLite settings (copy from config/database.example.json)
+# Local app config
 config/database.json
 
 # Local SQLite data files

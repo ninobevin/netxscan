@@ -1,153 +1,133 @@
-import { DatabaseSync } from 'node:sqlite';
-import type { Pool } from 'mysql2/promise';
-import type { DatabaseConfig } from './config';
-import type { DbClient, QueryHeader, QueryParams } from './types';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import initSqlJs from 'sql.js';
+import type { Database as SqlJsDatabase } from 'sql.js';
 
-let client: DbClient | undefined;
-let mysqlPool: Pool | undefined;
-let sqliteDb: DatabaseSync | undefined;
+const require = createRequire(__filename);
 
-async function mysqlDriver() {
-  const mod = await import('mysql2/promise');
-  return mod.default ?? mod;
+type RunResult = {
+  changes: number;
+  lastInsertRowid: number;
+};
+
+class Statement {
+  constructor(
+    private readonly engine: SqlJsDatabase,
+    private readonly sql: string,
+    private readonly persist: () => void,
+  ) {}
+
+  get(...params: unknown[]): Record<string, unknown> | undefined {
+    const stmt = this.engine.prepare(this.sql);
+    if (params.length > 0) {
+      stmt.bind(params as (string | number | null | Uint8Array)[]);
+    }
+    const row = stmt.step() ? (stmt.getAsObject() as Record<string, unknown>) : undefined;
+    stmt.free();
+    return row;
+  }
+
+  all(...params: unknown[]): Record<string, unknown>[] {
+    const stmt = this.engine.prepare(this.sql);
+    if (params.length > 0) {
+      stmt.bind(params as (string | number | null | Uint8Array)[]);
+    }
+    const rows: Record<string, unknown>[] = [];
+    while (stmt.step()) {
+      rows.push(stmt.getAsObject() as Record<string, unknown>);
+    }
+    stmt.free();
+    return rows;
+  }
+
+  run(...params: unknown[]): RunResult {
+    const stmt = this.engine.prepare(this.sql);
+    if (params.length > 0) {
+      stmt.bind(params as (string | number | null | Uint8Array)[]);
+    }
+    stmt.step();
+    stmt.free();
+    const changes = this.engine.getRowsModified();
+    const idRows = this.engine.exec('SELECT last_insert_rowid() AS id');
+    const lastInsertRowid = Number(idRows[0]?.values[0]?.[0] ?? 0);
+    this.persist();
+    return { changes, lastInsertRowid };
+  }
 }
 
-export async function initializeDatabase(
-  config: DatabaseConfig,
-): Promise<DbClient> {
-  await closeDatabase();
+export class AppDatabase {
+  constructor(
+    private readonly engine: SqlJsDatabase,
+    private readonly filePath: string,
+  ) {}
 
-  if (config.engine === 'sqlite') {
-    client = createSqliteClient(config.filePath);
-    return client;
+  exec(sql: string): void {
+    this.engine.exec(sql);
+    this.persist();
   }
 
-  const mysql = await mysqlDriver();
-
-  const bootstrap = await mysql.createConnection({
-    host: config.host,
-    port: config.port,
-    user: config.user,
-    password: config.password,
-  });
-
-  try {
-    await bootstrap.query(
-      `CREATE DATABASE IF NOT EXISTS \`${config.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
-    );
-  } finally {
-    await bootstrap.end();
+  prepare(sql: string): Statement {
+    return new Statement(this.engine, sql, () => this.persist());
   }
 
-  mysqlPool = mysql.createPool({
-    host: config.host,
-    port: config.port,
-    user: config.user,
-    password: config.password,
-    database: config.database,
-    waitForConnections: true,
-    connectionLimit: 5,
-    namedPlaceholders: true,
-  });
-
-  const pool = mysqlPool;
-  client = {
-    engine: 'mysql',
-    query: async (sql: string, params?: QueryParams) => {
-      const [rows, extra] = await pool.query(
-        sql,
-        params as never,
-      );
-      return [rows, extra as QueryHeader];
-    },
-  };
-
-  return client;
-}
-
-export function getDb(): DbClient {
-  if (!client) {
-    throw new Error('The database is not initialized.');
-  }
-
-  return client;
-}
-
-export async function closeDatabase(): Promise<void> {
-  if (mysqlPool) {
-    await mysqlPool.end();
-    mysqlPool = undefined;
-  }
-
-  if (sqliteDb) {
-    sqliteDb.close();
-    sqliteDb = undefined;
-  }
-
-  client = undefined;
-}
-
-function createSqliteClient(filePath: string): DbClient {
-  const db = new DatabaseSync(filePath);
-  db.exec('PRAGMA foreign_keys = ON');
-  sqliteDb = db;
-
-  return {
-    engine: 'sqlite',
-    query: async (sql: string, params?: QueryParams) => {
-      const trimmed = sql.trim();
-      const isSelect = /^(SELECT|WITH|PRAGMA|SHOW)\b/i.test(trimmed);
-
+  transaction<T, R>(fn: (items: T) => R): (items: T) => R {
+    return (items: T) => {
+      this.engine.exec('BEGIN');
       try {
-        if (!params || Object.keys(params).length === 0) {
-          if (isSelect) {
-            return [db.prepare(trimmed).all() as unknown];
-          }
-
-          db.exec(trimmed);
-          return [{ affectedRows: 0 }];
-        }
-
-        const statement = db.prepare(trimmed);
-        const bound = bindSqliteParams(params);
-
-        if (isSelect) {
-          return [statement.all(bound as never) as unknown];
-        }
-
-        const result = statement.run(bound as never);
-        return [{ affectedRows: Number(result.changes) }];
+        const result = fn(items);
+        this.engine.exec('COMMIT');
+        this.persist();
+        return result;
       } catch (error) {
-        throw mapSqliteError(error);
+        this.engine.exec('ROLLBACK');
+        throw error;
       }
-    },
-  };
+    };
+  }
+
+  persist(): void {
+    const data = this.engine.export();
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    fs.writeFileSync(this.filePath, Buffer.from(data));
+  }
+
+  close(): void {
+    this.persist();
+    this.engine.close();
+  }
 }
 
-function bindSqliteParams(params: QueryParams): QueryParams {
-  const bound: QueryParams = {};
+let db: AppDatabase | null = null;
 
-  for (const [key, value] of Object.entries(params)) {
-    const next = value === undefined ? null : value;
-    bound[key] = next;
-    bound[`:${key}`] = next;
+export function getDb(): AppDatabase {
+  if (!db) {
+    throw new Error('Database is not initialized.');
   }
 
-  return bound;
+  return db;
 }
 
-function mapSqliteError(error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error);
-  const mapped = new Error(message) as Error & { code?: string };
+export async function initializeDatabase(filePath: string): Promise<AppDatabase> {
+  const wasmPath = path.join(path.dirname(require.resolve('sql.js')), 'sql-wasm.wasm');
+  const wasmBytes = fs.readFileSync(wasmPath);
+  const SQL = await initSqlJs({
+    wasmBinary: wasmBytes.buffer.slice(
+      wasmBytes.byteOffset,
+      wasmBytes.byteOffset + wasmBytes.byteLength,
+    ),
+  });
 
-  if (/unique/i.test(message)) {
-    mapped.code = 'ER_DUP_ENTRY';
-    return mapped;
-  }
+  const fileBuffer = fs.existsSync(filePath)
+    ? new Uint8Array(fs.readFileSync(filePath))
+    : undefined;
+  const engine = new SQL.Database(fileBuffer);
+  db = new AppDatabase(engine, filePath);
+  db.persist();
+  return db;
+}
 
-  if (error && typeof error === 'object' && 'code' in error) {
-    mapped.code = String(error.code);
-  }
-
-  return mapped;
+export function closeDatabase(): void {
+  db?.close();
+  db = null;
 }

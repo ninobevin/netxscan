@@ -1,0 +1,27 @@
+---
+description: Secure IPC channel pattern
+globs: src/shared/ipc-channels.ts,src/shared/preload-api.ts,src/preload.ts,src/ipc/**/*.ts,src/**/register-*-ipc.ts
+alwaysApply: false
+---
+
+# IPC
+
+Every feature uses three layers. Never skip preload.
+
+1. Name in `ipc-channels.ts`: `'domain:action'` (example: `'app:ping'`).
+2. Method on `NetXScanApi` in `preload-api.ts`. Implement it in `preload.ts` with `ipcRenderer.invoke`.
+3. `ipcMain.handle` in `src/<domain>/register-<domain>-ipc.ts`. Call that register function from `register-handlers.ts`.
+
+```typescript
+// preload
+ping: () => ipcRenderer.invoke(ipcChannels.ping),
+
+// main
+ipcMain.handle(ipcChannels.ping, () => 'pong');
+```
+
+Renderer: `await window.netxscan.ping()`.
+
+Push events: `ipcRenderer.on` in preload, return an unsubscribe function. Do not expose `ipcRenderer` on `window`.
+
+Validate handler payloads in main. Return `{ ok: true, ... } | { ok: false, error: string }` for fallible calls. Freeze the preload API object.

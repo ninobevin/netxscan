@@ -1,73 +1,66 @@
-export const ASSET_TYPES = [
-  'workstation',
-  'server',
-  'virtual_server',
-  'network_device',
-  'printer',
-  'other',
+export const CATEGORY_ICON_ALLOWLIST = [
+  'Monitor',
+  'Laptop',
+  'Cctv',
+  'HardDrive',
+  'Network',
+  'Shield',
+  'Printer',
+  'Server',
+  'Router',
+  'Smartphone',
+  'Radio',
+  'Tag',
 ] as const;
 
-export type AssetType = (typeof ASSET_TYPES)[number];
+export type CategoryIconName = (typeof CATEGORY_ICON_ALLOWLIST)[number];
 
-export type AssetService = {
-  port: number;
-  protocol: string;
-  serviceName: string | null;
-  product: string | null;
-  version: string | null;
+export type Category = {
+  id: number;
+  name: string;
+  icon: string;
+  builtin: boolean;
 };
 
 export type Asset = {
-  id: string;
-  hostname: string;
-  ipAddress: string | null;
-  macAddress: string | null;
-  assetType: AssetType;
-  notes: string | null;
-  location: string | null;
-  assetGroup: string | null;
-  archivedAt: string | null;
-  winrmManageable: boolean | null;
-  winrmCheckedAt: string | null;
-  winrmDetail: string | null;
+  id: number;
+  ipv4: string;
+  hostname: string | null;
+  categoryId: number | null;
+  categoryName: string | null;
+  categoryIcon: string | null;
+  winrmOk: boolean;
+  osVersion: string | null;
   createdAt: string;
   updatedAt: string;
-  services: AssetService[];
 };
 
-export type AssetDeleteManyResult =
-  | { ok: true; deletedIds: string[] }
-  | { ok: false; error: AssetMutationError };
-
-export type AssetInput = {
-  hostname: string;
-  ipAddress: string | null;
-  macAddress: string | null;
-  assetType: AssetType;
-  notes: string | null;
-  location: string | null;
-  assetGroup: string | null;
+export type ScanHost = {
+  ipv4: string;
+  hostname: string | null;
+  winrmOk: boolean;
+  osVersion: string | null;
 };
 
-export type AssetMutationError =
-  | 'invalid_input'
-  | 'not_found'
-  | 'duplicate'
-  | 'unauthorized'
-  | 'database_unavailable';
+export type OkError = { ok: true } | { ok: false; error: string };
 
-export type AssetListResult =
-  | { ok: true; assets: Asset[] }
-  | { ok: false; error: AssetMutationError };
+export type AssetListResult = { ok: true; assets: Asset[] } | { ok: false; error: string };
 
-export type AssetItemResult =
-  | { ok: true; asset: Asset }
-  | { ok: false; error: AssetMutationError };
+export type CategoryListResult =
+  | { ok: true; categories: Category[] }
+  | { ok: false; error: string };
 
-export type LocationListResult =
-  | { ok: true; locations: string[] }
-  | { ok: false; error: AssetMutationError };
+export type ScanRunResult =
+  | { ok: true; scanned: number; live: number }
+  | { ok: false; error: string };
 
-export type GroupListResult =
-  | { ok: true; groups: string[] }
-  | { ok: false; error: AssetMutationError };
+export type AddToAssetsResult =
+  | { ok: true; added: number; skipped: number }
+  | { ok: false; error: string };
+
+export type WinrmProgress = {
+  assetId: number;
+  ipv4: string;
+  status: 'checking' | 'starting' | 'ok' | 'failed';
+  osVersion?: string | null;
+};

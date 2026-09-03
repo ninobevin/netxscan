@@ -1,327 +1,157 @@
 import { ipcMain } from 'electron';
-import { requireSession } from '../auth/session';
-import { writeAudit } from '../audit/repository';
-import type {
-  AssetDeleteManyResult,
-  AssetItemResult,
-  AssetListResult,
-  GroupListResult,
-  LocationListResult,
-} from '../shared/asset-types';
 import { ipcChannels } from '../shared/ipc-channels';
-import { addLocationName, deleteLocationName, listLocationNames } from './locations';
+import { requireRole, requireSession } from '../auth/session';
 import {
-  addGroupName,
-  deleteGroupName,
-  listGroupNames,
-  renameGroupName,
-} from './groups';
-import {
+  addCategory,
   deleteAsset,
+  deleteAssets,
   getAssetById,
-  isDuplicateError,
   listAssets,
+  listCategories,
   updateAsset,
+  updateWinrm,
 } from './repository';
-import {
-  parseAssetId,
-  parseAssetIds,
-  parseAssetInput,
-  parseLocationName,
-  parseRenameNames,
-} from './validate';
+import { errorMessage } from '../ipc/error-message';
+import { checkAccessibility } from '../scan/winrm';
 
-function requireAuth(): boolean {
-  try {
-    requireSession();
-    return true;
-  } catch {
-    return false;
-  }
-}
+let checking = false;
 
 export function registerAssetIpc(): void {
-  ipcMain.handle(
-    ipcChannels.assetList,
-    async (_event, payload: unknown): Promise<AssetListResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
+  ipcMain.handle(ipcChannels.assetList, () => {
+    try {
+      requireSession();
+      return { ok: true, assets: listAssets() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(ipcChannels.assetUpdate, (_event, payload: unknown) => {
+    try {
+      requireRole('administrator');
+    if (!payload || typeof payload !== 'object') {
+      return { ok: false, error: 'Invalid asset update.' };
+    }
+    const id = Number((payload as { id?: unknown }).id);
+    if (!Number.isInteger(id) || id < 1) {
+      return { ok: false, error: 'Invalid asset.' };
+    }
+    const categoryIdRaw = (payload as { categoryId?: unknown }).categoryId;
+    const categoryId =
+      categoryIdRaw === null || categoryIdRaw === undefined || categoryIdRaw === ''
+        ? null
+        : Number(categoryIdRaw);
+    if (categoryId !== null && (!Number.isInteger(categoryId) || categoryId < 1)) {
+      return { ok: false, error: 'Invalid category.' };
+    }
+    const asset = updateAsset(id, { categoryId });
+    if (!asset) {
+      return { ok: false, error: 'Asset not found.' };
+    }
+    return { ok: true, assets: listAssets() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(ipcChannels.assetDelete, (_event, payload: unknown) => {
+    try {
+      requireRole('administrator');
+      if (!payload || typeof payload !== 'object') {
+        return { ok: false, error: 'Invalid request.' };
       }
-
-      const includeArchived =
-        !!payload &&
-        typeof payload === 'object' &&
-        (payload as { includeArchived?: unknown }).includeArchived === true;
-
-      try {
-        const assets = await listAssets(includeArchived);
-        return { ok: true, assets };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
+      const idsRaw = (payload as { ids?: unknown }).ids;
+      const idSingle = (payload as { id?: unknown }).id;
+      const ids = Array.isArray(idsRaw)
+        ? idsRaw.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+        : [Number(idSingle)].filter((id) => Number.isInteger(id) && id > 0);
+      if (ids.length === 0) {
+        return { ok: false, error: 'Select assets to delete.' };
       }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.assetGet,
-    async (_event, payload: unknown): Promise<AssetItemResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
+      if (ids.length === 1) {
+        deleteAsset(ids[0]);
+      } else {
+        deleteAssets(ids);
       }
+      return { ok: true, assets: listAssets() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
 
-      const id = parseAssetId(payload);
+  ipcMain.handle(ipcChannels.categoryList, () => {
+    try {
+      requireSession();
+      return { ok: true, categories: listCategories() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
 
-      if (!id) {
-        return { ok: false, error: 'invalid_input' };
+  ipcMain.handle(ipcChannels.categoryAdd, (_event, payload: unknown) => {
+    try {
+      requireRole('administrator');
+      if (!payload || typeof payload !== 'object') {
+        return { ok: false, error: 'Invalid category.' };
       }
-
-      try {
-        const asset = await getAssetById(id);
-        return asset ? { ok: true, asset } : { ok: false, error: 'not_found' };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
+      const name = String((payload as { name?: unknown }).name ?? '');
+      const icon = String((payload as { icon?: unknown }).icon ?? 'Tag');
+      const created = addCategory(name, icon);
+      if ('error' in created) {
+        return { ok: false, error: created.error };
       }
-    },
-  );
+      return { ok: true, categories: listCategories() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
 
-  ipcMain.handle(
-    ipcChannels.assetUpdate,
-    async (_event, payload: unknown): Promise<AssetItemResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
+  ipcMain.handle(ipcChannels.assetsCheckAccessibility, async (event, payload: unknown) => {
+    try {
+      requireRole('administrator');
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+    if (checking) {
+      return { ok: false, error: 'Accessibility check is already running.' };
+    }
+    if (!payload || typeof payload !== 'object' || !Array.isArray((payload as { ids?: unknown }).ids)) {
+      return { ok: false, error: 'Select at least one asset.' };
+    }
+    const ids = (payload as { ids: unknown[] })
+      .ids.map(Number)
+      .filter((id) => Number.isInteger(id) && id > 0);
+    if (ids.length === 0) {
+      return { ok: false, error: 'Select at least one asset.' };
+    }
 
-      const id = parseAssetId(payload);
-      const input = parseAssetInput(payload);
-
-      if (!id || !input) {
-        return { ok: false, error: 'invalid_input' };
-      }
-
-      try {
-        const asset = await updateAsset(id, input);
+    checking = true;
+    try {
+      for (const id of ids) {
+        const asset = getAssetById(id);
         if (!asset) {
-          return { ok: false, error: 'not_found' };
+          continue;
         }
-
-        await writeAudit(
-          'asset_update',
-          `${asset.hostname}${asset.ipAddress ? ` (${asset.ipAddress})` : ''}`,
-        );
-        return { ok: true, asset };
-      } catch (error) {
-        if (isDuplicateError(error)) {
-          return { ok: false, error: 'duplicate' };
-        }
-
-        return { ok: false, error: 'database_unavailable' };
+        event.sender.send(ipcChannels.assetsWinrmProgress, {
+          assetId: asset.id,
+          ipv4: asset.ipv4,
+          status: 'checking',
+        });
+        const host = asset.hostname ?? asset.ipv4;
+        const result = await checkAccessibility(host, true);
+        updateWinrm(asset.id, result.ok, result.osVersion);
+        event.sender.send(ipcChannels.assetsWinrmProgress, {
+          assetId: asset.id,
+          ipv4: asset.ipv4,
+          status: result.ok ? 'ok' : 'failed',
+          osVersion: result.osVersion,
+        });
       }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.assetDelete,
-    async (_event, payload: unknown): Promise<AssetItemResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      const id = parseAssetId(payload);
-
-      if (!id) {
-        return { ok: false, error: 'invalid_input' };
-      }
-
-      try {
-        const asset = await deleteAsset(id);
-        if (!asset) {
-          return { ok: false, error: 'not_found' };
-        }
-
-        await writeAudit(
-          'asset_delete',
-          `${asset.hostname}${asset.ipAddress ? ` (${asset.ipAddress})` : ''}`,
-        );
-        return { ok: true, asset };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.assetDeleteMany,
-    async (_event, payload: unknown): Promise<AssetDeleteManyResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      const ids = parseAssetIds(payload);
-      if (!ids) {
-        return { ok: false, error: 'invalid_input' };
-      }
-
-      try {
-        const deletedIds: string[] = [];
-        for (const id of ids) {
-          const asset = await deleteAsset(id);
-          if (!asset) {
-            continue;
-          }
-
-          await writeAudit(
-            'asset_delete',
-            `${asset.hostname}${asset.ipAddress ? ` (${asset.ipAddress})` : ''}`,
-          );
-          deletedIds.push(id);
-        }
-
-        return { ok: true, deletedIds };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.locationList,
-    async (): Promise<LocationListResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      try {
-        const locations = await listLocationNames();
-        return { ok: true, locations };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.locationAdd,
-    async (_event, payload: unknown): Promise<LocationListResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      const name = parseLocationName(payload);
-      if (!name) {
-        return { ok: false, error: 'invalid_input' };
-      }
-
-      try {
-        const locations = await addLocationName(name);
-        await writeAudit('location_add', name);
-        return { ok: true, locations };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.locationDelete,
-    async (_event, payload: unknown): Promise<LocationListResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      const name = parseLocationName(payload);
-      if (!name) {
-        return { ok: false, error: 'invalid_input' };
-      }
-
-      try {
-        const locations = await deleteLocationName(name);
-        await writeAudit('location_delete', name);
-        return { ok: true, locations };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.groupList,
-    async (): Promise<GroupListResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      try {
-        const groups = await listGroupNames();
-        return { ok: true, groups };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.groupAdd,
-    async (_event, payload: unknown): Promise<GroupListResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      const name = parseLocationName(payload);
-      if (!name) {
-        return { ok: false, error: 'invalid_input' };
-      }
-
-      try {
-        const groups = await addGroupName(name);
-        await writeAudit('group_add', name);
-        return { ok: true, groups };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.groupRename,
-    async (_event, payload: unknown): Promise<GroupListResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      const names = parseRenameNames(payload);
-      if (!names) {
-        return { ok: false, error: 'invalid_input' };
-      }
-
-      try {
-        const groups = await renameGroupName(names.name, names.newName);
-        await writeAudit('group_rename', `${names.name} -> ${names.newName}`);
-        return { ok: true, groups };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    ipcChannels.groupDelete,
-    async (_event, payload: unknown): Promise<GroupListResult> => {
-      if (!requireAuth()) {
-        return { ok: false, error: 'unauthorized' };
-      }
-
-      const name = parseLocationName(payload);
-      if (!name) {
-        return { ok: false, error: 'invalid_input' };
-      }
-
-      try {
-        const groups = await deleteGroupName(name);
-        await writeAudit('group_delete', name);
-        return { ok: true, groups };
-      } catch {
-        return { ok: false, error: 'database_unavailable' };
-      }
-    },
-  );
+      return { ok: true, assets: listAssets() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    } finally {
+      checking = false;
+    }
+  });
 }

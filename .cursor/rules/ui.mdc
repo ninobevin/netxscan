@@ -1,0 +1,15 @@
+---
+description: React renderer and Tailwind
+globs: src/ui/**/*.tsx,src/renderer.tsx,src/index.css,tailwind.config.js
+alwaysApply: false
+---
+
+# UI
+
+Functional React components in `src/ui/`. Entry is `src/renderer.tsx`.
+
+Talk to main only through `window.netxscan`. No `ipcRenderer` in components.
+
+Use official shadcn/ui from `npx shadcn@latest add` (`components.json`, `src/components/ui`). Import via `@/components/ui/...`. Lucide for categories and WinRM. Clinic teal via CSS variables. Do not add a CSS-in-JS library.
+
+Prefer small panels over one giant `App.tsx`. Keep `App.tsx` as shell (loading + current view). Light theme only unless the user asks otherwise.
