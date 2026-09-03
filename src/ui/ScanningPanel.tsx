@@ -19,6 +19,7 @@ export function ScanningPanel() {
   const [hosts, setHosts] = useState<ScanHost[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [busyMode, setBusyMode] = useState<'ping' | 'nmap' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,18 +47,21 @@ export function ScanningPanel() {
 
   const allSelected = hosts.length > 0 && selected.size === hosts.length;
 
-  const runScan = async () => {
+  const runScan = async (mode: 'ping' | 'nmap') => {
     setBusy(true);
+    setBusyMode(mode);
     setMessage(null);
     setHosts([]);
     setSelected(new Set());
-    const result = await window.netxscan.runScan(target);
+    const result = await window.netxscan.runScan(target, mode);
     setBusy(false);
+    setBusyMode(null);
     if (!result.ok) {
       setMessage(result.error);
       return;
     }
-    setMessage(`Scanned ${result.scanned} target(s); ${result.live} live.`);
+    const kind = mode === 'nmap' ? 'Deep (nmap)' : 'Quick (ping)';
+    setMessage(`${kind}: scanned ${result.scanned} target(s); ${result.live} live.`);
   };
 
   const addSelected = async () => {
@@ -88,9 +92,13 @@ export function ScanningPanel() {
             onChange={(event) => setTarget(event.target.value)}
           />
         </div>
-        <Button disabled={busy} onClick={() => void runScan()}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Scan
+        <Button disabled={busy} onClick={() => void runScan('ping')}>
+          {busyMode === 'ping' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Quick scan
+        </Button>
+        <Button disabled={busy} variant="secondary" onClick={() => void runScan('nmap')}>
+          {busyMode === 'nmap' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Deep scan
         </Button>
         <Button
           variant="secondary"

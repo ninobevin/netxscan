@@ -16,7 +16,7 @@ export type NetXScanApi = {
   login: (username: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
   getSession: () => Promise<PublicSession | null>;
-  runScan: (target: string) => Promise<ScanRunResult>;
+  runScan: (target: string, mode: 'ping' | 'nmap') => Promise<ScanRunResult>;
   onScanHostFound: (listener: (host: ScanHost) => void) => () => void;
   addScanToAssets: (hosts: ScanHost[]) => Promise<AddToAssetsResult>;
   listAssets: () => Promise<AssetListResult>;

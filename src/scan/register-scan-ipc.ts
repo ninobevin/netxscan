@@ -5,6 +5,7 @@ import { errorMessage } from '../ipc/error-message';
 import { expandScanTarget } from './expand-targets';
 import { pingHost } from './ping-host';
 import { mapPool } from './pool';
+import { discoverHostsWithNmap, nmapTargetSpec } from './nmap-discover';
 import { addScanHosts } from '../assets/repository';
 import type { ScanHost } from '../shared/asset-types';
 
@@ -25,6 +26,11 @@ export function registerScanIpc(): void {
       payload && typeof payload === 'object'
         ? String((payload as { target?: unknown }).target ?? '')
         : '';
+    const modeRaw =
+      payload && typeof payload === 'object'
+        ? (payload as { mode?: unknown }).mode
+        : 'ping';
+    const mode = modeRaw === 'nmap' ? 'nmap' : 'ping';
     const expanded = expandScanTarget(target);
     if ('error' in expanded) {
       return { ok: false, error: expanded.error };
@@ -37,6 +43,23 @@ export function registerScanIpc(): void {
         expanded.kind === 'ipv4'
           ? expanded.ips
           : [expanded.host];
+
+      if (mode === 'nmap') {
+        const result = await discoverHostsWithNmap(
+          nmapTargetSpec(target),
+          (found) => {
+            const host: ScanHost = {
+              ipv4: found.ipv4,
+              hostname: found.hostname,
+              winrmOk: false,
+              osVersion: null,
+            };
+            event.sender.send(ipcChannels.scanHostFound, host);
+          },
+        );
+        live = result.live;
+        return { ok: true, scanned: jobs.length, live };
+      }
 
       await mapPool(jobs, 32, async (job) => {
         const ping = await pingHost(job);

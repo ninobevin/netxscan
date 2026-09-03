@@ -3,7 +3,7 @@
 Source of truth for the current rebuild. Later modules will append here. Stack: Electron Forge, Vite, React, TypeScript, Tailwind, secure IPC (`window.netxscan` only). Renderer has no Node.
 
 **This pass:** Authentication, Scanning, Asset Manager, shadcn UI.  
-**Not this pass:** NVD, findings, company profile, audit, PowerShell assessment scripts. Nmap is only a MAC fallback on Check accessibility.
+**Not this pass:** NVD, findings, company profile, audit, PowerShell assessment scripts. Nmap in Scanning is host discovery only (no ports). Nmap is also a MAC fallback on Check accessibility.
 
 ## Background
 
@@ -41,7 +41,7 @@ Administrators add location names (clinic, floor, room). Each asset may have one
 | | Administrator | IT support |
 |---|---|---|
 | Sign in | Yes | Yes |
-| Run scan (`ping -a` only) | Yes | Yes |
+| Run scan (Quick ping / Deep nmap host discovery) | Yes | Yes |
 | Add selected scan rows to Asset Manager | Yes | Yes (create only) |
 | View Asset Manager (filter, group, paginate) | Yes | Yes |
 | Edit device, location, and other properties | Yes | No |
@@ -65,7 +65,7 @@ Session lives **in memory** in the main process. Renderer uses `getSession` (and
 
 **Scan vs Asset Manager**
 
-- **Scan:** `ping -a` only. New rows: `winrm_ok` false, OS/MAC/location/device null.
+- **Scan:** Quick = `ping -a`; Deep = nmap host discovery (`-sn`) for ICMP-silent hosts. New Asset Manager rows: `winrm_ok` false, OS/MAC/location/device null.
 - **Asset Manager (admin) Check accessibility:** probe WinRM (may start the service); save OS and MAC if remoting works. If not, run nmap for MAC only.
 
 ## Module 1 — Authentication
@@ -80,12 +80,14 @@ Other feature IPC requires an active session. Mutating asset/category/WinRM hand
 ## Module 2 — Scanning
 
 - User enters a **single IP**, **hostname**, **CIDR**, or **IP range**. **No authorized-network allowlist.**
-- Main expands IPv4 targets and pings with Windows **`ping -a`** (concurrency cap). Live hosts are pushed to the UI (`scan:host-found`) with IP and hostname only.
-- Hostname: NetBIOS/DNS name from `ping -a` when present; otherwise show the IP.
+- **Quick scan:** Main expands IPv4 targets and pings with Windows **`ping -a`** (concurrency cap).
+- **Deep scan:** One **nmap** host-discovery process (`-sn`, ARP + TCP ping probes). Finds hosts that do not answer ICMP. No port scan, OS, or MAC. nmap must be on PATH.
+- Live hosts are pushed to the UI (`scan:host-found`) with IP and hostname only.
+- Hostname: from `ping -a` on Quick; from nmap PTR/name on Deep when present; otherwise show the IP.
 - Scan results are **session memory only**. Closing the view or running a new scan replaces the list. **Nothing is written to SQLite until the user adds to Asset Manager.**
 - Multi-select + **Add to Asset Manager**. Existing IPv4 rows are skipped. New rows copy ip and hostname; `winrm_ok` is false, `os_version` is null, `category_id` stays null.
 
-IPC: `scan:run`, `scan:host-found` (push), `scan:add-to-assets`.
+IPC: `scan:run` (`target` + `mode`: `ping` | `nmap`), `scan:host-found` (push), `scan:add-to-assets`.
 
 ## Module 3 — Asset Manager
 
@@ -128,12 +130,12 @@ IPC: `asset:list`, `asset:update` (admin, device and location), `asset:delete` (
 ## Architecture rules
 
 ```
-React  →  window.netxscan  →  preload invoke/on  →  ipcMain  →  SQLite / ping / PowerShell
+React  →  window.netxscan  →  preload invoke/on  →  ipcMain  →  SQLite / ping / nmap / PowerShell
 ```
 
 - `contextIsolation`, `sandbox`, no `nodeIntegration`.
 - Channel names in `src/shared/ipc-channels.ts`; types on `NetXScanApi`; handlers in `src/<domain>/register-*-ipc.ts`; register from `src/ipc/register-handlers.ts`.
-- Spawn `ping`, PowerShell, and **nmap** (MAC fallback) **only in main**.
+- Spawn `ping`, PowerShell, and **nmap** (scan discovery + MAC fallback) **only in main**.
 
 ## Data (SQLite)
 
@@ -144,4 +146,4 @@ React  →  window.netxscan  →  preload invoke/on  →  ipcMain  →  SQLite /
 
 ## Later (do not build now)
 
-Nmap as a full module (ports/OS), NVD/findings, company profile, audit trail.
+Nmap ports/OS module, NVD/findings, company profile, audit trail.

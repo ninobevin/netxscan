@@ -11,7 +11,8 @@ const api: NetXScanApi = Object.freeze({
     ipcRenderer.invoke(ipcChannels.login, { username, password }),
   logout: () => ipcRenderer.invoke(ipcChannels.logout),
   getSession: () => ipcRenderer.invoke(ipcChannels.getSession),
-  runScan: (target) => ipcRenderer.invoke(ipcChannels.scanRun, { target }),
+  runScan: (target, mode) =>
+    ipcRenderer.invoke(ipcChannels.scanRun, { target, mode }),
   onScanHostFound: (listener) => {
     const wrapped = (_event: unknown, host: ScanHost) => {
       listener(host);
