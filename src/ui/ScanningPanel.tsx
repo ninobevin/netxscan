@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -120,14 +120,12 @@ export function ScanningPanel() {
               </TableHead>
               <TableHead>IP</TableHead>
               <TableHead>Hostname</TableHead>
-              <TableHead>OS</TableHead>
-              <TableHead>WinRM</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {hosts.length === 0 ? (
               <TableRow>
-                <TableCell className="py-8 text-center text-muted-foreground" colSpan={5}>
+                <TableCell className="py-8 text-center text-muted-foreground" colSpan={3}>
                   {busy ? 'Scanning…' : 'No live hosts yet. Run a scan to populate this list.'}
                 </TableCell>
               </TableRow>
@@ -143,14 +141,6 @@ export function ScanningPanel() {
                   </TableCell>
                   <TableCell className="font-mono">{host.ipv4}</TableCell>
                   <TableCell>{host.hostname ?? host.ipv4}</TableCell>
-                  <TableCell className="text-muted-foreground">{host.osVersion ?? '—'}</TableCell>
-                  <TableCell>
-                    {host.winrmOk ? (
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </TableCell>
                 </TableRow>
               ))
             )}

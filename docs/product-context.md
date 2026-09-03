@@ -37,7 +37,7 @@ Store `categories.icon` as the lucide export name string. Renderer maps that nam
 | | Administrator | IT support |
 |---|---|---|
 | Sign in | Yes | Yes |
-| Run scan (`ping -a` + WinRM/OS probe) | Yes | Yes |
+| Run scan (`ping -a` only) | Yes | Yes |
 | Add selected scan rows to Asset Manager | Yes | Yes (create only) |
 | View Asset Manager (filter, group, paginate) | Yes | Yes |
 | Edit category and other asset properties | Yes | No |
@@ -64,7 +64,7 @@ These fields are part of the saved asset row, not a separate module.
 
 **Scan vs Asset Manager**
 
-- **Scan:** after `ping -a` finds a live host, **probe only** (do not start the WinRM service). Push `winrm_ok` and `os_version` on the in-memory row. Persist them when the user adds the row to Asset Manager.
+- **Scan:** after `ping -a` finds a live host, push IP and hostname only. Do **not** probe WinRM or OS. New Asset Manager rows start with `winrm_ok` false and `os_version` null.
 - **Asset Manager (admin):** for **checked** assets, probe; if remoting is down, **try to start WinRM** (`sc.exe \\ComputerName start WinRM` or equivalent); probe again; write `winrm_ok` and `os_version`.
 
 ## Module 1 — Authentication
@@ -79,10 +79,10 @@ Other feature IPC requires an active session. Mutating asset/category/WinRM hand
 ## Module 2 — Scanning
 
 - User enters a **single IP**, **hostname**, **CIDR**, or **IP range**. **No authorized-network allowlist.**
-- Main expands IPv4 targets and pings with Windows **`ping -a`** (concurrency cap). Live hosts are pushed to the UI (`scan:host-found`) including hostname, WinRM probe result, and OS version when known.
+- Main expands IPv4 targets and pings with Windows **`ping -a`** (concurrency cap). Live hosts are pushed to the UI (`scan:host-found`) with IP and hostname only.
 - Hostname: NetBIOS/DNS name from `ping -a` when present; otherwise show the IP.
 - Scan results are **session memory only**. Closing the view or running a new scan replaces the list. **Nothing is written to SQLite until the user adds to Asset Manager.**
-- Multi-select + **Add to Asset Manager**. Existing IPv4 rows are skipped. New rows copy ip, hostname, `winrm_ok`, `os_version`; `category_id` stays null.
+- Multi-select + **Add to Asset Manager**. Existing IPv4 rows are skipped. New rows copy ip and hostname; `winrm_ok` is false, `os_version` is null, `category_id` stays null.
 
 IPC: `scan:run`, `scan:host-found` (push), `scan:add-to-assets`.
 

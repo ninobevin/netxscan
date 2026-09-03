@@ -5,7 +5,6 @@ import { errorMessage } from '../ipc/error-message';
 import { expandScanTarget } from './expand-targets';
 import { pingHost } from './ping-host';
 import { mapPool } from './pool';
-import { probeWinrm } from './winrm';
 import { addScanHosts } from '../assets/repository';
 import type { ScanHost } from '../shared/asset-types';
 
@@ -45,13 +44,11 @@ export function registerScanIpc(): void {
           return;
         }
         live += 1;
-        const remotingHost = ping.hostname ?? ping.ipv4;
-        const winrm = await probeWinrm(remotingHost);
         const host: ScanHost = {
           ipv4: ping.ipv4,
           hostname: ping.hostname,
-          winrmOk: winrm.ok,
-          osVersion: winrm.osVersion,
+          winrmOk: false,
+          osVersion: null,
         };
         event.sender.send(ipcChannels.scanHostFound, host);
       });
@@ -87,8 +84,8 @@ export function registerScanIpc(): void {
       hosts.push({
         ipv4,
         hostname: row.hostname ? String(row.hostname) : null,
-        winrmOk: Boolean(row.winrmOk),
-        osVersion: row.osVersion ? String(row.osVersion) : null,
+        winrmOk: false,
+        osVersion: null,
       });
     }
 

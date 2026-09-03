@@ -60,17 +60,15 @@ export function addScanHosts(hosts: ScanHost[]): { added: number; skipped: numbe
   let added = 0;
   let skipped = 0;
 
-  const run = db.transaction((items: ScanHost[]) => {
-    for (const host of items) {
-      if (exists.get(host.ipv4)) {
-        skipped += 1;
-        continue;
-      }
-      insert.run(host.ipv4, host.hostname, host.winrmOk ? 1 : 0, host.osVersion, now, now);
-      added += 1;
+  for (const host of hosts) {
+    if (exists.get(host.ipv4)) {
+      skipped += 1;
+      continue;
     }
-  });
-  run(hosts);
+    insert.run(host.ipv4, host.hostname, host.winrmOk ? 1 : 0, host.osVersion, now, now);
+    added += 1;
+  }
+
   return { added, skipped };
 }
 

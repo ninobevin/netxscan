@@ -57,6 +57,8 @@ class Statement {
 }
 
 export class AppDatabase {
+  private inTransaction = false;
+
   constructor(
     private readonly engine: SqlJsDatabase,
     private readonly filePath: string,
@@ -73,26 +75,37 @@ export class AppDatabase {
 
   transaction<T, R>(fn: (items: T) => R): (items: T) => R {
     return (items: T) => {
-      this.engine.exec('BEGIN');
+      this.inTransaction = true;
       try {
+        this.engine.run('BEGIN');
         const result = fn(items);
-        this.engine.exec('COMMIT');
+        this.engine.run('COMMIT');
+        this.inTransaction = false;
         this.persist();
         return result;
       } catch (error) {
-        this.engine.exec('ROLLBACK');
+        try {
+          this.engine.run('ROLLBACK');
+        } catch {
+          /* SQLite already aborted the transaction */
+        }
+        this.inTransaction = false;
         throw error;
       }
     };
   }
 
   persist(): void {
+    if (this.inTransaction) {
+      return;
+    }
     const data = this.engine.export();
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     fs.writeFileSync(this.filePath, Buffer.from(data));
   }
 
   close(): void {
+    this.inTransaction = false;
     this.persist();
     this.engine.close();
   }
