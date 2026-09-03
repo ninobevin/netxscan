@@ -3,16 +3,19 @@ import { ipcChannels } from '../shared/ipc-channels';
 import { requireRole, requireSession } from '../auth/session';
 import {
   addCategory,
+  addLocation,
   deleteAsset,
   deleteAssets,
   getAssetById,
   listAssets,
   listCategories,
+  listLocations,
   updateAsset,
   updateWinrm,
 } from './repository';
 import { errorMessage } from '../ipc/error-message';
 import { checkAccessibility } from '../scan/winrm';
+import { lookupMacWithNmap } from '../scan/nmap-mac';
 
 let checking = false;
 
@@ -38,13 +41,36 @@ export function registerAssetIpc(): void {
     }
     const categoryIdRaw = (payload as { categoryId?: unknown }).categoryId;
     const categoryId =
-      categoryIdRaw === null || categoryIdRaw === undefined || categoryIdRaw === ''
-        ? null
-        : Number(categoryIdRaw);
-    if (categoryId !== null && (!Number.isInteger(categoryId) || categoryId < 1)) {
-      return { ok: false, error: 'Invalid category.' };
+      categoryIdRaw === undefined
+        ? undefined
+        : categoryIdRaw === null || categoryIdRaw === ''
+          ? null
+          : Number(categoryIdRaw);
+    if (
+      categoryId !== undefined &&
+      categoryId !== null &&
+      (!Number.isInteger(categoryId) || categoryId < 1)
+    ) {
+      return { ok: false, error: 'Invalid device.' };
     }
-    const asset = updateAsset(id, { categoryId });
+    const locationIdRaw = (payload as { locationId?: unknown }).locationId;
+    const locationId =
+      locationIdRaw === undefined
+        ? undefined
+        : locationIdRaw === null || locationIdRaw === ''
+          ? null
+          : Number(locationIdRaw);
+    if (
+      locationId !== undefined &&
+      locationId !== null &&
+      (!Number.isInteger(locationId) || locationId < 1)
+    ) {
+      return { ok: false, error: 'Invalid location.' };
+    }
+    const asset = updateAsset(id, {
+      ...(categoryId !== undefined ? { categoryId } : {}),
+      ...(locationId !== undefined ? { locationId } : {}),
+    });
     if (!asset) {
       return { ok: false, error: 'Asset not found.' };
     }
@@ -106,6 +132,32 @@ export function registerAssetIpc(): void {
     }
   });
 
+  ipcMain.handle(ipcChannels.locationList, () => {
+    try {
+      requireSession();
+      return { ok: true, locations: listLocations() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(ipcChannels.locationAdd, (_event, payload: unknown) => {
+    try {
+      requireRole('administrator');
+      if (!payload || typeof payload !== 'object') {
+        return { ok: false, error: 'Invalid location.' };
+      }
+      const name = String((payload as { name?: unknown }).name ?? '');
+      const created = addLocation(name);
+      if ('error' in created) {
+        return { ok: false, error: created.error };
+      }
+      return { ok: true, locations: listLocations() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
   ipcMain.handle(ipcChannels.assetsCheckAccessibility, async (event, payload: unknown) => {
     try {
       requireRole('administrator');
@@ -138,13 +190,18 @@ export function registerAssetIpc(): void {
           status: 'checking',
         });
         const host = asset.hostname ?? asset.ipv4;
-        const result = await checkAccessibility(host, true);
-        updateWinrm(asset.id, result.ok, result.osVersion);
+        const result = await checkAccessibility(host, asset.ipv4, true);
+        let macAddress = result.macAddress;
+        if (!result.ok) {
+          macAddress = (await lookupMacWithNmap(asset.ipv4)) ?? macAddress;
+        }
+        updateWinrm(asset.id, result.ok, result.osVersion, macAddress);
         event.sender.send(ipcChannels.assetsWinrmProgress, {
           assetId: asset.id,
           ipv4: asset.ipv4,
           status: result.ok ? 'ok' : 'failed',
           osVersion: result.osVersion,
+          macAddress,
         });
       }
       return { ok: true, assets: listAssets() };

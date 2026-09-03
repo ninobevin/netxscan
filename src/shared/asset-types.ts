@@ -22,6 +22,11 @@ export type Category = {
   builtin: boolean;
 };
 
+export type Location = {
+  id: number;
+  name: string;
+};
+
 export type Asset = {
   id: number;
   ipv4: string;
@@ -29,8 +34,11 @@ export type Asset = {
   categoryId: number | null;
   categoryName: string | null;
   categoryIcon: string | null;
+  locationId: number | null;
+  locationName: string | null;
   winrmOk: boolean;
   osVersion: string | null;
+  macAddress: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -50,6 +58,10 @@ export type CategoryListResult =
   | { ok: true; categories: Category[] }
   | { ok: false; error: string };
 
+export type LocationListResult =
+  | { ok: true; locations: Location[] }
+  | { ok: false; error: string };
+
 export type ScanRunResult =
   | { ok: true; scanned: number; live: number }
   | { ok: false; error: string };
@@ -63,4 +75,5 @@ export type WinrmProgress = {
   ipv4: string;
   status: 'checking' | 'starting' | 'ok' | 'failed';
   osVersion?: string | null;
+  macAddress?: string | null;
 };

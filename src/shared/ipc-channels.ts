@@ -12,6 +12,8 @@ export const ipcChannels = {
   assetDelete: 'asset:delete',
   categoryList: 'category:list',
   categoryAdd: 'category:add',
+  locationList: 'location:list',
+  locationAdd: 'location:add',
   assetsCheckAccessibility: 'assets:check-accessibility',
   assetsWinrmProgress: 'assets:winrm-progress',
 } as const;

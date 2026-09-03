@@ -3,6 +3,7 @@ import type {
   AddToAssetsResult,
   AssetListResult,
   CategoryListResult,
+  LocationListResult,
   OkError,
   ScanHost,
   ScanRunResult,
@@ -19,10 +20,15 @@ export type NetXScanApi = {
   onScanHostFound: (listener: (host: ScanHost) => void) => () => void;
   addScanToAssets: (hosts: ScanHost[]) => Promise<AddToAssetsResult>;
   listAssets: () => Promise<AssetListResult>;
-  updateAsset: (id: number, categoryId: number | null) => Promise<AssetListResult>;
+  updateAsset: (
+    id: number,
+    input: { categoryId?: number | null; locationId?: number | null },
+  ) => Promise<AssetListResult>;
   deleteAssets: (ids: number[]) => Promise<AssetListResult>;
   listCategories: () => Promise<CategoryListResult>;
   addCategory: (name: string, icon: string) => Promise<CategoryListResult>;
+  listLocations: () => Promise<LocationListResult>;
+  addLocation: (name: string) => Promise<LocationListResult>;
   checkAccessibility: (ids: number[]) => Promise<AssetListResult | OkError>;
   onWinrmProgress: (listener: (event: WinrmProgress) => void) => () => void;
 };

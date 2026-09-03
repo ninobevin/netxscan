@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/table';
 import { CategoryIcon } from './CategoryIcon';
 import { CATEGORY_ICON_ALLOWLIST } from '../shared/asset-types';
-import type { Asset, Category } from '../shared/asset-types';
+import type { Asset, Category, Location } from '../shared/asset-types';
 import type { PublicSession } from '../shared/auth-types';
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
@@ -46,28 +46,36 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
   const isAdmin = session.role === 'administrator';
   const [assets, setAssets] = useState<Asset[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [filter, setFilter] = useState<string>('all');
+  const [deviceFilter, setDeviceFilter] = useState<string>('all');
+  const [locationFilter, setLocationFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(25);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [checking, setChecking] = useState<Set<number>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
+  const [addDeviceOpen, setAddDeviceOpen] = useState(false);
+  const [addLocationOpen, setAddLocationOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newIcon, setNewIcon] = useState('Tag');
+  const [newLocation, setNewLocation] = useState('');
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
-    const [assetResult, categoryResult] = await Promise.all([
+    const [assetResult, categoryResult, locationResult] = await Promise.all([
       window.netxscan.listAssets(),
       window.netxscan.listCategories(),
+      window.netxscan.listLocations(),
     ]);
     if (assetResult.ok) {
       setAssets(assetResult.assets);
     }
     if (categoryResult.ok) {
       setCategories(categoryResult.categories);
+    }
+    if (locationResult.ok) {
+      setLocations(locationResult.locations);
     }
   };
 
@@ -91,6 +99,7 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
                   ...asset,
                   winrmOk: event.status === 'ok',
                   osVersion: event.osVersion ?? asset.osVersion,
+                  macAddress: event.macAddress ?? asset.macAddress,
                 }
               : asset,
           ),
@@ -101,15 +110,29 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
 
   const filtered = useMemo(() => {
     return assets.filter((asset) => {
-      if (filter === 'all') {
-        return true;
+      if (deviceFilter === 'none' && asset.categoryId !== null) {
+        return false;
       }
-      if (filter === 'none') {
-        return asset.categoryId === null;
+      if (
+        deviceFilter !== 'all' &&
+        deviceFilter !== 'none' &&
+        String(asset.categoryId) !== deviceFilter
+      ) {
+        return false;
       }
-      return String(asset.categoryId) === filter;
+      if (locationFilter === 'none' && asset.locationId !== null) {
+        return false;
+      }
+      if (
+        locationFilter !== 'all' &&
+        locationFilter !== 'none' &&
+        String(asset.locationId) !== locationFilter
+      ) {
+        return false;
+      }
+      return true;
     });
-  }, [assets, filter]);
+  }, [assets, deviceFilter, locationFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
@@ -143,9 +166,17 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
     });
   };
 
-  const onCategoryChange = async (id: number, categoryId: string) => {
+  const onDeviceChange = async (id: number, categoryId: string) => {
     const next = categoryId === '' ? null : Number(categoryId);
-    const result = await window.netxscan.updateAsset(id, next);
+    const result = await window.netxscan.updateAsset(id, { categoryId: next });
+    if (result.ok) {
+      setAssets(result.assets);
+    }
+  };
+
+  const onLocationChange = async (id: number, locationId: string) => {
+    const next = locationId === '' ? null : Number(locationId);
+    const result = await window.netxscan.updateAsset(id, { locationId: next });
     if (result.ok) {
       setAssets(result.assets);
     }
@@ -183,39 +214,73 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
     }
   };
 
-  const onAddCategory = async () => {
+  const onAddDevice = async () => {
     const result = await window.netxscan.addCategory(newName, newIcon);
     if (!result.ok) {
       setMessage(result.error);
       return;
     }
     setCategories(result.categories);
-    setAddOpen(false);
+    setAddDeviceOpen(false);
     setNewName('');
     setNewIcon('Tag');
+  };
+
+  const onAddLocation = async () => {
+    const result = await window.netxscan.addLocation(newLocation);
+    if (!result.ok) {
+      setMessage(result.error);
+      return;
+    }
+    setLocations(result.locations);
+    setAddLocationOpen(false);
+    setNewLocation('');
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-2">
-          <Label>Category</Label>
+          <Label>Device</Label>
           <Select
-            value={filter}
+            value={deviceFilter}
             onValueChange={(value) => {
-              setFilter(value);
+              setDeviceFilter(value);
               setPage(1);
             }}
           >
             <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Category" />
+              <SelectValue placeholder="Device" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
-              <SelectItem value="none">Uncategorized</SelectItem>
+              <SelectItem value="none">No device</SelectItem>
               {categories.map((category) => (
                 <SelectItem key={category.id} value={String(category.id)}>
                   {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Location</Label>
+          <Select
+            value={locationFilter}
+            onValueChange={(value) => {
+              setLocationFilter(value);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Location" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="none">No location</SelectItem>
+              {locations.map((location) => (
+                <SelectItem key={location.id} value={String(location.id)}>
+                  {location.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -254,8 +319,11 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Check accessibility
             </Button>
-            <Button variant="secondary" onClick={() => setAddOpen(true)}>
-              Add category
+            <Button variant="secondary" onClick={() => setAddDeviceOpen(true)}>
+              Add device
+            </Button>
+            <Button variant="secondary" onClick={() => setAddLocationOpen(true)}>
+              Add location
             </Button>
             <Button
               variant="destructive"
@@ -296,7 +364,9 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
               </TableHead>
               <TableHead>IP</TableHead>
               <TableHead>Hostname</TableHead>
-              <TableHead>Category</TableHead>
+              <TableHead>MAC</TableHead>
+              <TableHead>Device</TableHead>
+              <TableHead>Location</TableHead>
               <TableHead>OS</TableHead>
               <TableHead>WinRM</TableHead>
             </TableRow>
@@ -304,7 +374,7 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
           <TableBody>
             {groups.length === 0 ? (
               <TableRow>
-                <TableCell className="py-8 text-center text-muted-foreground" colSpan={6}>
+                <TableCell className="py-8 text-center text-muted-foreground" colSpan={8}>
                   No saved assets. Add hosts from Scanning.
                 </TableCell>
               </TableRow>
@@ -313,7 +383,7 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
                 const closed = collapsed.has(subnet);
                 const header = (
                   <TableRow key={`${subnet}-h`} className="bg-muted/40 hover:bg-muted/40">
-                    <TableCell colSpan={6}>
+                    <TableCell colSpan={8}>
                       <button
                         type="button"
                         className="inline-flex items-center gap-2 text-sm font-medium"
@@ -358,6 +428,9 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
                       </TableCell>
                       <TableCell className="font-mono">{asset.ipv4}</TableCell>
                       <TableCell>{asset.hostname ?? asset.ipv4}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {asset.macAddress ?? '—'}
+                      </TableCell>
                       <TableCell>
                         {isAdmin ? (
                           <span className="inline-flex items-center gap-2">
@@ -367,7 +440,7 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
                             <Select
                               value={asset.categoryId === null ? 'none' : String(asset.categoryId)}
                               onValueChange={(value) => {
-                                void onCategoryChange(
+                                void onDeviceChange(
                                   asset.id,
                                   value === 'none' ? '' : value,
                                 );
@@ -377,7 +450,7 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="none">Uncategorized</SelectItem>
+                                <SelectItem value="none">No device</SelectItem>
                                 {categories.map((category) => (
                                   <SelectItem key={category.id} value={String(category.id)}>
                                     {category.name}
@@ -391,8 +464,35 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
                             <CategoryIcon
                               name={asset.categoryIcon ?? 'CircleDashed'}
                             />
-                            {asset.categoryName ?? 'Uncategorized'}
+                            {asset.categoryName ?? 'No device'}
                           </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isAdmin ? (
+                          <Select
+                            value={asset.locationId === null ? 'none' : String(asset.locationId)}
+                            onValueChange={(value) => {
+                              void onLocationChange(
+                                asset.id,
+                                value === 'none' ? '' : value,
+                              );
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[160px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No location</SelectItem>
+                              {locations.map((location) => (
+                                <SelectItem key={location.id} value={String(location.id)}>
+                                  {location.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          asset.locationName ?? 'No location'
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -438,16 +538,16 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
           </Button>
         </div>
       </div>
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog open={addDeviceOpen} onOpenChange={setAddDeviceOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add category</DialogTitle>
+            <DialogTitle>Add device</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="cat-name">Name</Label>
+              <Label htmlFor="dev-name">Name</Label>
               <Input
-                id="cat-name"
+                id="dev-name"
                 value={newName}
                 onChange={(event) => setNewName(event.target.value)}
               />
@@ -467,7 +567,25 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={() => void onAddCategory()}>Save category</Button>
+            <Button onClick={() => void onAddDevice()}>Save device</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={addLocationOpen} onOpenChange={setAddLocationOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add location</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="loc-name">Name</Label>
+              <Input
+                id="loc-name"
+                value={newLocation}
+                onChange={(event) => setNewLocation(event.target.value)}
+              />
+            </div>
+            <Button onClick={() => void onAddLocation()}>Save location</Button>
           </div>
         </DialogContent>
       </Dialog>

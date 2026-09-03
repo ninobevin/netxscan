@@ -24,12 +24,14 @@ const api: NetXScanApi = Object.freeze({
   addScanToAssets: (hosts) =>
     ipcRenderer.invoke(ipcChannels.scanAddToAssets, { hosts }),
   listAssets: () => ipcRenderer.invoke(ipcChannels.assetList),
-  updateAsset: (id, categoryId) =>
-    ipcRenderer.invoke(ipcChannels.assetUpdate, { id, categoryId }),
+  updateAsset: (id, input) =>
+    ipcRenderer.invoke(ipcChannels.assetUpdate, { id, ...input }),
   deleteAssets: (ids) => ipcRenderer.invoke(ipcChannels.assetDelete, { ids }),
   listCategories: () => ipcRenderer.invoke(ipcChannels.categoryList),
   addCategory: (name, icon) =>
     ipcRenderer.invoke(ipcChannels.categoryAdd, { name, icon }),
+  listLocations: () => ipcRenderer.invoke(ipcChannels.locationList),
+  addLocation: (name) => ipcRenderer.invoke(ipcChannels.locationAdd, { name }),
   checkAccessibility: (ids) =>
     ipcRenderer.invoke(ipcChannels.assetsCheckAccessibility, { ids }),
   onWinrmProgress: (listener) => {

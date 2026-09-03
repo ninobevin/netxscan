@@ -30,17 +30,22 @@ function computerArg(host: string): string {
   return host.replace(/'/g, "''");
 }
 
-export async function probeWinrm(host: string): Promise<{
+export async function probeWinrm(
+  host: string,
+  ipv4: string,
+): Promise<{
   ok: boolean;
   osVersion: string | null;
+  macAddress: string | null;
 }> {
   const name = computerArg(host);
+  const ip = computerArg(ipv4);
   const test = await runPowerShell(
     `try { Test-WSMan -ComputerName '${name}' -ErrorAction Stop | Out-Null; 'OK' } catch { 'FAIL' }`,
     8000,
   );
   if (test !== 'OK') {
-    return { ok: false, osVersion: null };
+    return { ok: false, osVersion: null, macAddress: null };
   }
 
   const os = await runPowerShell(
@@ -48,7 +53,16 @@ export async function probeWinrm(host: string): Promise<{
     12000,
   );
 
-  return { ok: true, osVersion: os || null };
+  const mac = await runPowerShell(
+    `try { Invoke-Command -ComputerName '${name}' -ArgumentList '${ip}' -ScriptBlock { param($want) $cfgs = @(Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.MACAddress }); $m = $cfgs | Where-Object { $_.IPAddress -contains $want } | Select-Object -First 1; if ($m) { $m.MACAddress } elseif ($cfgs.Count -gt 0) { $cfgs[0].MACAddress } else { '' } } -ErrorAction Stop } catch { '' }`,
+    15000,
+  );
+
+  return {
+    ok: true,
+    osVersion: os || null,
+    macAddress: mac ? mac.toUpperCase() : null,
+  };
 }
 
 export async function tryStartWinrm(host: string): Promise<void> {
@@ -74,14 +88,15 @@ export async function tryStartWinrm(host: string): Promise<void> {
 
 export async function checkAccessibility(
   host: string,
+  ipv4: string,
   startIfNeeded: boolean,
-): Promise<{ ok: boolean; osVersion: string | null }> {
-  let result = await probeWinrm(host);
+): Promise<{ ok: boolean; osVersion: string | null; macAddress: string | null }> {
+  let result = await probeWinrm(host, ipv4);
   if (result.ok || !startIfNeeded) {
     return result;
   }
 
   await tryStartWinrm(host);
-  result = await probeWinrm(host);
+  result = await probeWinrm(host, ipv4);
   return result;
 }

@@ -30,8 +30,10 @@ function rebuildAssetsTable(db: AppDatabase, columns: string[]): void {
       ipv4 TEXT NOT NULL UNIQUE,
       hostname TEXT,
       category_id INTEGER REFERENCES categories(id),
+      location_id INTEGER REFERENCES locations(id),
       winrm_ok INTEGER NOT NULL DEFAULT 0,
       os_version TEXT,
+      mac_address TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -40,8 +42,10 @@ function rebuildAssetsTable(db: AppDatabase, columns: string[]): void {
   if (ipSource) {
     const hostname = columns.includes('hostname') ? 'hostname' : 'NULL';
     const categoryId = columns.includes('category_id') ? 'category_id' : 'NULL';
+    const locationId = columns.includes('location_id') ? 'location_id' : 'NULL';
     const winrmOk = columns.includes('winrm_ok') ? 'winrm_ok' : '0';
     const osVersion = columns.includes('os_version') ? 'os_version' : 'NULL';
+    const macAddress = columns.includes('mac_address') ? 'mac_address' : 'NULL';
     const createdAt = columns.includes('created_at')
       ? 'created_at'
       : `'${new Date().toISOString()}'`;
@@ -51,8 +55,8 @@ function rebuildAssetsTable(db: AppDatabase, columns: string[]): void {
 
     db.exec(`
       INSERT OR IGNORE INTO assets_rebuild
-        (id, ipv4, hostname, category_id, winrm_ok, os_version, created_at, updated_at)
-      SELECT id, ${ipSource}, ${hostname}, ${categoryId}, ${winrmOk}, ${osVersion},
+        (id, ipv4, hostname, category_id, location_id, winrm_ok, os_version, mac_address, created_at, updated_at)
+      SELECT id, ${ipSource}, ${hostname}, ${categoryId}, ${locationId}, ${winrmOk}, ${osVersion}, ${macAddress},
              ${createdAt}, ${updatedAt}
       FROM assets
       WHERE ${ipSource} IS NOT NULL AND ${ipSource} != '';
@@ -81,13 +85,20 @@ export function runMigrations(db: AppDatabase): void {
       builtin INTEGER NOT NULL DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS locations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE
+    );
+
     CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ipv4 TEXT NOT NULL UNIQUE,
       hostname TEXT,
       category_id INTEGER REFERENCES categories(id),
+      location_id INTEGER REFERENCES locations(id),
       winrm_ok INTEGER NOT NULL DEFAULT 0,
       os_version TEXT,
+      mac_address TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -100,6 +111,8 @@ export function runMigrations(db: AppDatabase): void {
     'category_id',
     'winrm_ok',
     'os_version',
+    'mac_address',
+    'location_id',
     'created_at',
     'updated_at',
   ];
@@ -108,6 +121,14 @@ export function runMigrations(db: AppDatabase): void {
     requiredAsset.some((name) => !assetColumns.includes(name))
   ) {
     rebuildAssetsTable(db, assetColumns);
+  }
+
+  const latestAssetColumns = columnNames(db, 'assets');
+  if (latestAssetColumns.includes('id') && !latestAssetColumns.includes('mac_address')) {
+    db.exec('ALTER TABLE assets ADD COLUMN mac_address TEXT;');
+  }
+  if (latestAssetColumns.includes('id') && !latestAssetColumns.includes('location_id')) {
+    db.exec('ALTER TABLE assets ADD COLUMN location_id INTEGER REFERENCES locations(id);');
   }
 
   const categoryColumns = columnNames(db, 'categories');
