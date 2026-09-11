@@ -13,7 +13,7 @@ npm start
 Bootstrap accounts:
 
 - `admin` / `Admin123!` (administrator)
-- `support` / `Support123!` (IT support)
+- `support` / `Support123!` (user)
 
 After main-process IPC changes, type `rs` in the `npm start` terminal.
 

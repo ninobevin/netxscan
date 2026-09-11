@@ -8,8 +8,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -27,7 +25,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CategoryIcon } from './CategoryIcon';
-import { CATEGORY_ICON_ALLOWLIST } from '../shared/asset-types';
+import { ManageDevicesDialog, ManageLocationsDialog } from './CatalogManageDialogs';
+import { showSaveSuccess } from './show-save-success';
 import type { Asset, Category, Location } from '../shared/asset-types';
 import type { PublicSession } from '../shared/auth-types';
 
@@ -55,11 +54,8 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [checking, setChecking] = useState<Set<number>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
-  const [addDeviceOpen, setAddDeviceOpen] = useState(false);
-  const [addLocationOpen, setAddLocationOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newIcon, setNewIcon] = useState('Tag');
-  const [newLocation, setNewLocation] = useState('');
+  const [manageDevicesOpen, setManageDevicesOpen] = useState(false);
+  const [manageLocationsOpen, setManageLocationsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
@@ -171,6 +167,7 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
     const result = await window.netxscan.updateAsset(id, { categoryId: next });
     if (result.ok) {
       setAssets(result.assets);
+      showSaveSuccess();
     }
   };
 
@@ -179,6 +176,7 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
     const result = await window.netxscan.updateAsset(id, { locationId: next });
     if (result.ok) {
       setAssets(result.assets);
+      showSaveSuccess();
     }
   };
 
@@ -212,29 +210,6 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
       setAssets(result.assets);
       setSelected(new Set());
     }
-  };
-
-  const onAddDevice = async () => {
-    const result = await window.netxscan.addCategory(newName, newIcon);
-    if (!result.ok) {
-      setMessage(result.error);
-      return;
-    }
-    setCategories(result.categories);
-    setAddDeviceOpen(false);
-    setNewName('');
-    setNewIcon('Tag');
-  };
-
-  const onAddLocation = async () => {
-    const result = await window.netxscan.addLocation(newLocation);
-    if (!result.ok) {
-      setMessage(result.error);
-      return;
-    }
-    setLocations(result.locations);
-    setAddLocationOpen(false);
-    setNewLocation('');
   };
 
   return (
@@ -319,11 +294,11 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Check accessibility
             </Button>
-            <Button variant="secondary" onClick={() => setAddDeviceOpen(true)}>
-              Add device
+            <Button variant="secondary" onClick={() => setManageDevicesOpen(true)}>
+              Device types
             </Button>
-            <Button variant="secondary" onClick={() => setAddLocationOpen(true)}>
-              Add location
+            <Button variant="secondary" onClick={() => setManageLocationsOpen(true)}>
+              Locations
             </Button>
             <Button
               variant="destructive"
@@ -538,57 +513,24 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
           </Button>
         </div>
       </div>
-      <Dialog open={addDeviceOpen} onOpenChange={setAddDeviceOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add device</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="dev-name">Name</Label>
-              <Input
-                id="dev-name"
-                value={newName}
-                onChange={(event) => setNewName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Icon</Label>
-              <Select value={newIcon} onValueChange={setNewIcon}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORY_ICON_ALLOWLIST.map((icon) => (
-                    <SelectItem key={icon} value={icon}>
-                      {icon}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={() => void onAddDevice()}>Save device</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={addLocationOpen} onOpenChange={setAddLocationOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add location</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="loc-name">Name</Label>
-              <Input
-                id="loc-name"
-                value={newLocation}
-                onChange={(event) => setNewLocation(event.target.value)}
-              />
-            </div>
-            <Button onClick={() => void onAddLocation()}>Save location</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ManageDevicesDialog
+        open={manageDevicesOpen}
+        onOpenChange={setManageDevicesOpen}
+        categories={categories}
+        onCategoriesChange={setCategories}
+        onAssetsMayChange={() => {
+          void refresh();
+        }}
+      />
+      <ManageLocationsDialog
+        open={manageLocationsOpen}
+        onOpenChange={setManageLocationsOpen}
+        locations={locations}
+        onLocationsChange={setLocations}
+        onAssetsMayChange={() => {
+          void refresh();
+        }}
+      />
     </div>
   );
 }

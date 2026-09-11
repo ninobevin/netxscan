@@ -6,7 +6,7 @@ import { setSession } from './session';
 type UserRow = {
   username: string;
   password_hash: string;
-  role: UserRole;
+  role: string;
 };
 
 export async function login(payload: unknown): Promise<LoginResult> {
@@ -34,7 +34,8 @@ export async function login(payload: unknown): Promise<LoginResult> {
     return { ok: false, error: 'Invalid username or password.' };
   }
 
-  const session = { username: row.username, role: row.role };
+  const role: UserRole = row.role === 'administrator' ? 'administrator' : 'user';
+  const session = { username: row.username, role };
   setSession(session);
   return { ok: true, session };
 }

@@ -196,3 +196,84 @@ export function addLocation(name: string): Location | { error: string } {
     return { error: 'A location with that name already exists.' };
   }
 }
+
+function resolveIcon(icon: string): string {
+  return CATEGORY_ICON_ALLOWLIST.includes(icon as (typeof CATEGORY_ICON_ALLOWLIST)[number])
+    ? icon
+    : 'Tag';
+}
+
+export function updateCategory(
+  id: number,
+  name: string,
+  icon: string,
+): Category | { error: string } {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { error: 'Device name is required.' };
+  }
+  const existing = listCategories().find((item) => item.id === id);
+  if (!existing) {
+    return { error: 'Device type not found.' };
+  }
+  try {
+    getDb()
+      .prepare('UPDATE categories SET name = ?, icon = ? WHERE id = ?')
+      .run(trimmed, resolveIcon(icon), id);
+  } catch {
+    return { error: 'A device with that name already exists.' };
+  }
+  const updated = listCategories().find((item) => item.id === id);
+  return updated ?? { error: 'Could not update device type.' };
+}
+
+export function deleteCategory(id: number): { error: string } | { ok: true } {
+  const existing = listCategories().find((item) => item.id === id);
+  if (!existing) {
+    return { error: 'Device type not found.' };
+  }
+  if (existing.builtin) {
+    return { error: 'Built-in device types cannot be deleted.' };
+  }
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.prepare('UPDATE assets SET category_id = NULL, updated_at = ? WHERE category_id = ?').run(
+    now,
+    id,
+  );
+  db.prepare('DELETE FROM categories WHERE id = ?').run(id);
+  return { ok: true };
+}
+
+export function updateLocation(id: number, name: string): Location | { error: string } {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { error: 'Location name is required.' };
+  }
+  const existing = listLocations().find((item) => item.id === id);
+  if (!existing) {
+    return { error: 'Location not found.' };
+  }
+  try {
+    getDb().prepare('UPDATE locations SET name = ? WHERE id = ?').run(trimmed, id);
+  } catch {
+    return { error: 'A location with that name already exists.' };
+  }
+  const updated = listLocations().find((item) => item.id === id);
+  return updated ?? { error: 'Could not update location.' };
+}
+
+export function deleteLocation(id: number): { error: string } | { ok: true } {
+  const existing = listLocations().find((item) => item.id === id);
+  if (!existing) {
+    return { error: 'Location not found.' };
+  }
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.prepare('UPDATE assets SET location_id = NULL, updated_at = ? WHERE location_id = ?').run(
+    now,
+    id,
+  );
+  db.prepare('DELETE FROM locations WHERE id = ?').run(id);
+  return { ok: true };
+}

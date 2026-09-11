@@ -75,7 +75,7 @@ export function runMigrations(db: AppDatabase): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('administrator', 'it_support'))
+      role TEXT NOT NULL CHECK (role IN ('administrator', 'user'))
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -100,6 +100,15 @@ export function runMigrations(db: AppDatabase): void {
       os_version TEXT,
       mac_address TEXT,
       created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS company_profile (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      name TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      contact TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL
     );
   `);
@@ -139,13 +148,33 @@ export function runMigrations(db: AppDatabase): void {
     db.exec(`ALTER TABLE categories ADD COLUMN builtin INTEGER NOT NULL DEFAULT 0;`);
   }
 
+  const userTable = db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'`)
+    .get() as { sql?: string } | undefined;
+  if (userTable?.sql?.includes('it_support')) {
+    db.exec(`
+      CREATE TABLE users_rebuild (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('administrator', 'user'))
+      );
+      INSERT INTO users_rebuild (id, username, password_hash, role)
+      SELECT id, username, password_hash,
+        CASE WHEN role = 'it_support' THEN 'user' ELSE role END
+      FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_rebuild RENAME TO users;
+    `);
+  }
+
   const userCount = db.prepare('SELECT COUNT(*) AS n FROM users').get();
   if (!userCount || Number(userCount.n) === 0) {
     const insert = db.prepare(
       'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
     );
     insert.run('admin', bcrypt.hashSync('Admin123!', 10), 'administrator');
-    insert.run('support', bcrypt.hashSync('Support123!', 10), 'it_support');
+    insert.run('support', bcrypt.hashSync('Support123!', 10), 'user');
   }
 
   const insertCategory = db.prepare(
@@ -153,5 +182,19 @@ export function runMigrations(db: AppDatabase): void {
   );
   for (const category of SEED_CATEGORIES) {
     insertCategory.run(category.name, category.icon);
+  }
+
+  const companyRow = db.prepare('SELECT id FROM company_profile WHERE id = 1').get();
+  if (!companyRow) {
+    db.prepare(
+      `INSERT INTO company_profile (id, name, address, contact, notes, updated_at)
+       VALUES (1, ?, ?, ?, ?, ?)`,
+    ).run(
+      'Al Noor Dental Clinic',
+      'Khalifa City, Abu Dhabi',
+      'it@alnoordental.local',
+      '',
+      new Date().toISOString(),
+    );
   }
 }

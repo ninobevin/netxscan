@@ -41,7 +41,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">Sign in</h1>
           <p className="mt-1 text-sm text-health-subtle">
-            Use your local administrator or IT support account.
+            Use your local administrator or user account.
           </p>
         </div>
         <div className="space-y-2">

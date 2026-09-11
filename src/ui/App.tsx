@@ -1,21 +1,54 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PublicSession } from '../shared/auth-types';
+import { AdhicsPanel } from './AdhicsPanel';
+import { AssetDetailPanel } from './AssetDetailPanel';
 import { AssetManagerPanel } from './AssetManagerPanel';
+import { DashboardPanel } from './DashboardPanel';
+import { FindingsPanel } from './FindingsPanel';
 import { LoginView } from './LoginView';
+import { ReportPanel } from './ReportPanel';
 import { ScanningPanel } from './ScanningPanel';
-import { Button } from '@/components/ui/button';
+import { ScriptsPanel } from './ScriptsPanel';
+import { SettingsPanel } from './SettingsPanel';
+import { UserMenu } from './UserMenu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DUMMY_CONTROLS, type DummyControl } from './prototype/dummy-data';
 
-type AppView = 'scanning' | 'assets';
+type NavId =
+  | 'scanning'
+  | 'assets'
+  | 'dashboard'
+  | 'findings'
+  | 'adhics'
+  | 'scripts'
+  | 'report'
+  | 'settings';
+
+type AppView = NavId | 'assetDetail';
 
 const MENU_LOAD_MS = 280;
+
+const NAV: Array<{ id: NavId; label: string }> = [
+  { id: 'scanning', label: 'Scanning' },
+  { id: 'assets', label: 'Inventory' },
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'findings', label: 'Findings' },
+  { id: 'adhics', label: 'ADHICS' },
+  { id: 'scripts', label: 'Scripts' },
+  { id: 'report', label: 'Report' },
+  { id: 'settings', label: 'Settings' },
+];
 
 export function App() {
   const [session, setSession] = useState<PublicSession | null>(null);
   const [ready, setReady] = useState(false);
   const [view, setView] = useState<AppView>('scanning');
-  const [activeNav, setActiveNav] = useState<AppView>('scanning');
+  const [activeNav, setActiveNav] = useState<NavId>('scanning');
   const [menuLoading, setMenuLoading] = useState(false);
+  const [assetId, setAssetId] = useState<number | null>(null);
+  const [detailOrigin, setDetailOrigin] = useState<NavId>('dashboard');
+  const [scriptControlId, setScriptControlId] = useState<string | null>(null);
+  const [controls, setControls] = useState<DummyControl[]>(DUMMY_CONTROLS);
   const loadTimer = useRef<number | null>(null);
 
   const refreshSession = async () => {
@@ -37,17 +70,41 @@ export function App() {
     };
   }, []);
 
-  const changeView = (next: AppView) => {
-    if (next === view || menuLoading) {
+  const go = (next: AppView, nav: NavId) => {
+    if (menuLoading) {
       return;
     }
-    setActiveNav(next);
+    if (next === view && next !== 'assetDetail' && next !== 'scripts') {
+      return;
+    }
+    setActiveNav(nav);
+    if (next === view) {
+      return;
+    }
     setMenuLoading(true);
     loadTimer.current = window.setTimeout(() => {
       setView(next);
       setMenuLoading(false);
       loadTimer.current = null;
     }, MENU_LOAD_MS);
+  };
+
+  const changeNav = (next: NavId) => {
+    if (next !== 'scripts') {
+      setScriptControlId(null);
+    }
+    go(next, next);
+  };
+
+  const openAsset = (id: number, origin: NavId) => {
+    setAssetId(id);
+    setDetailOrigin(origin);
+    go('assetDetail', origin);
+  };
+
+  const openScripts = (controlId: string) => {
+    setScriptControlId(controlId);
+    go('scripts', 'scripts');
   };
 
   if (!ready) {
@@ -71,39 +128,24 @@ export function App() {
   return (
     <div className="min-h-screen bg-health-canvas text-health-text">
       <header className="border-b border-health-border bg-health-surface">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-8 py-5">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-8 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-health-accent">
               NetXScan
             </p>
             <h1 className="mt-1 text-2xl font-semibold">Network assets</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl border border-health-border bg-health-muted px-3 py-2 text-right">
-              <p className="text-sm font-medium">{session.username}</p>
-              <p className="text-xs text-health-subtle">
-                {session.role === 'administrator' ? 'Administrator' : 'IT support'}
-              </p>
-            </div>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                void window.netxscan.logout().then(() => refreshSession());
-              }}
-            >
-              Sign out
-            </Button>
-          </div>
+          <UserMenu
+            session={session}
+            onLoggedOut={() => {
+              void refreshSession();
+            }}
+          />
         </div>
       </header>
-      <div className="mx-auto max-w-6xl px-8 py-8">
+      <div className="mx-auto max-w-7xl px-8 py-8">
         <nav className="mb-6 flex flex-wrap gap-1 rounded-xl border border-health-border bg-health-surface p-1">
-          {(
-            [
-              { id: 'scanning', label: 'Scanning' },
-              { id: 'assets', label: 'Asset Manager' },
-            ] as const
-          ).map((item) => (
+          {NAV.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -113,7 +155,7 @@ export function App() {
                   ? 'app-nav-btn app-nav-btn-active'
                   : 'app-nav-btn'
               }
-              onClick={() => changeView(item.id)}
+              onClick={() => changeNav(item.id)}
             >
               {item.label}
             </button>
@@ -126,8 +168,51 @@ export function App() {
           </div>
         ) : view === 'scanning' ? (
           <ScanningPanel />
-        ) : (
+        ) : view === 'assets' ? (
           <AssetManagerPanel session={session} />
+        ) : view === 'dashboard' ? (
+          <DashboardPanel
+            onOpenAsset={(id) => openAsset(id, 'dashboard')}
+            onOpenFindings={() => changeNav('findings')}
+          />
+        ) : view === 'assetDetail' && assetId !== null ? (
+          <AssetDetailPanel
+            assetId={assetId}
+            controls={controls}
+            onBack={() => changeNav(detailOrigin)}
+            onOpenScripts={openScripts}
+          />
+        ) : view === 'findings' ? (
+          <FindingsPanel
+            controls={controls}
+            onOpenAsset={(id) => openAsset(id, 'findings')}
+          />
+        ) : view === 'adhics' ? (
+          <AdhicsPanel
+            controls={controls}
+            onControlsChange={setControls}
+            onOpenAsset={(id) => openAsset(id, 'adhics')}
+            onOpenScripts={openScripts}
+          />
+        ) : view === 'scripts' ? (
+          <ScriptsPanel
+            controls={controls}
+            focusControlId={scriptControlId}
+          />
+        ) : view === 'report' ? (
+          <ReportPanel controls={controls} />
+        ) : view === 'settings' ? (
+          <SettingsPanel
+            session={session}
+            onSessionRefresh={() => {
+              void refreshSession();
+            }}
+          />
+        ) : (
+          <DashboardPanel
+            onOpenAsset={(id) => openAsset(id, 'dashboard')}
+            onOpenFindings={() => changeNav('findings')}
+          />
         )}
       </div>
     </div>

@@ -2,8 +2,8 @@
 
 Source of truth for the current rebuild. Later modules will append here. Stack: Electron Forge, Vite, React, TypeScript, Tailwind, secure IPC (`window.netxscan` only). Renderer has no Node.
 
-**This pass:** Authentication, Scanning, Asset Manager, shadcn UI.  
-**Not this pass:** NVD, findings, company profile, audit, PowerShell assessment scripts. Nmap in Scanning is host discovery only (no ports). Nmap is also a MAC fallback on Check accessibility.
+**This pass:** Authentication, Scanning, Inventory, company Settings, shadcn UI.  
+**Not this pass:** NVD, findings as live data, audit, PowerShell assessment scripts. Nmap in Scanning is host discovery only (no ports). Nmap is also a MAC fallback on Check accessibility.
 
 ## Background
 
@@ -28,24 +28,27 @@ Built-in (seeded, not deleted by the app):
 | Managed Switch | `Network` |
 | Firewall | `Shield` |
 
-Administrators can **add** more device types: name plus an icon from the allowlist. Default icon is `Tag`. Device type is optional until an admin assigns one.
+Administrators can **add, edit, and delete** device types from an Inventory dialog (name plus an icon from the allowlist). Default icon is `Tag`. Built-in types cannot be deleted. Deleting a custom type clears `category_id` on assets that used it. Device type is optional until an admin assigns one.
 
 Store `categories.icon` as the lucide export name (table name unchanged). Unknown names fall back to `Tag`.
 
 ## Locations
 
-Administrators add location names (clinic, floor, room). Each asset may have one `location_id`. IT support can view but not add or assign.
+Administrators add, edit, and delete location names (clinic, floor, room) from an Inventory dialog. Each asset may have one `location_id`. Deleting a location clears it on assigned assets. User-level accounts can view but not add, edit, delete, or assign.
 
 ## Roles
 
-| | Administrator | IT support |
+| | Administrator | User |
 |---|---|---|
 | Sign in | Yes | Yes |
 | Run scan (Quick ping / Deep nmap host discovery) | Yes | Yes |
 | Add selected scan rows to Asset Manager | Yes | Yes (create only) |
 | View Asset Manager (filter, group, paginate) | Yes | Yes |
 | Edit device, location, and other properties | Yes | No |
-| Add device types and locations | Yes | No |
+| Add / edit / delete device types and locations | Yes | No |
+| View Settings (company profile) | Yes | Yes |
+| Edit company profile | Yes | No |
+| Manage users (add / edit / delete, set level) | Yes | No |
 | Delete assets | Yes | No |
 | Check accessibility on selected assets (may start WinRM) | Yes | No |
 | Later: run vulnerability assessment | Yes | Yes (planned) |
@@ -53,7 +56,7 @@ Administrators add location names (clinic, floor, room). Each asset may have one
 Bootstrap users (password hashes in SQLite, never plaintext in git):
 
 - `admin` / `Admin123!` — administrator
-- `support` / `Support123!` — IT support
+- `support` / `Support123!` — user
 
 Session lives **in memory** in the main process. Renderer uses `getSession` (and a light poll). No session cookie in Chromium storage as the source of truth.
 
@@ -89,9 +92,9 @@ Other feature IPC requires an active session. Mutating asset/category/WinRM hand
 
 IPC: `scan:run` (`target` + `mode`: `ping` | `nmap`), `scan:host-found` (push), `scan:add-to-assets`.
 
-## Module 3 — Asset Manager
+## Module 3 — Inventory (saved assets)
 
-List of **saved** assets only.
+UI label **Inventory**. Same SQLite `assets` table and `asset:*` IPC. Administrators assign device (category) and location here.
 
 ### Table UX
 
@@ -102,8 +105,8 @@ List of **saved** assets only.
 
 Columns: select, IP, hostname, MAC, device (icon + label), location, OS version, WinRM icon.
 
-- Admin: assign device and location, add device/location, delete, **Check accessibility** (selected ids).
-- IT support: browse/filter/group/paginate; no property writes, no accessibility button.
+- Admin: assign device and location, manage device types and locations in dialogs (add/edit/delete), delete assets, **Check accessibility** (selected ids).
+- User: browse/filter/group/paginate; no property writes, no accessibility button.
 
 ### Check accessibility (admin, selected assets)
 
@@ -118,13 +121,21 @@ For each selected asset:
 
 Progress: `assets:winrm-progress`.
 
-IPC: `asset:list`, `asset:update` (admin, device and location), `asset:delete` (admin), `category:list`, `category:add`, `location:list`, `location:add` (admin), `assets:check-accessibility`, `assets:winrm-progress`.
+IPC: `asset:list`, `asset:update` (admin, device and location), `asset:delete` (admin), `category:list`, `category:add`, `category:update`, `category:delete`, `location:list`, `location:add`, `location:update`, `location:delete` (admin), `assets:check-accessibility`, `assets:winrm-progress`.
+
+## Module 4 — Settings (company profile and users)
+
+Single-row SQLite `company_profile`. Both roles can view. Administrator saves name, address, contact, and notes.
+
+Administrator manages local accounts: username, password, and level (`administrator` or `user`). Hashes are stored; passwords are never returned to the renderer. Cannot delete your own account or remove the last administrator.
+
+IPC: `company:get`, `company:update` (admin), `user:list`, `user:add`, `user:update`, `user:delete` (admin).
 
 ## UI
 
 - **shadcn/ui** + **lucide-react** + loading **skeletons** / short view-switch transition.
 - Keep the clinic teal palette via CSS variables (light theme).
-- After login: nav **Scanning** | **Asset Manager**, user chip, Sign out.
+- After login: nav **Scanning** | **Inventory** (live device/location assignment) | prototype tabs (Dashboard, Findings, ADHICS, Scripts, Report) | **Settings** (live company profile; admin user management). User menu (avatar) for log out.
 - Login view if there is no session.
 
 ## Architecture rules
@@ -139,11 +150,26 @@ React  →  window.netxscan  →  preload invoke/on  →  ipcMain  →  SQLite /
 
 ## Data (SQLite)
 
-- `users` — username unique, password_hash, role (`administrator` | `it_support`)
+- `users` — username unique, password_hash, role (`administrator` | `user`)
 - `categories` — name unique, icon (lucide name); six seeds with the icons above (UI label: Device)
 - `locations` — name unique (user-defined)
 - `assets` — ipv4 unique, hostname nullable, mac_address nullable, category_id nullable FK, location_id nullable FK, winrm_ok, os_version nullable, created_at, updated_at
+- `company_profile` — single row (`id = 1`): name, address, contact, notes, updated_at
 
 ## Later (do not build now)
 
-Nmap ports/OS module, NVD/findings, company profile, audit trail.
+Nmap ports/OS as a live module, NVD/CVE placement, audit trail, PowerShell script runner. Report/Dashboard still use dummy clinic copy until wired to `company_profile`.
+
+## Prototype GUI (dummy data only)
+
+Renderer-only screens for layout. No new IPC, no SQLite, no NVD, no PowerShell spawn.
+
+- **Inventory** (live): former Asset Manager — assign device and location, Check accessibility. Scanning **Add to Inventory**.
+- **Dashboard** — KPI cards, recent ADHICS findings, assets needing attention.
+- **Asset detail** (dummy drill-in from Dashboard / Findings / ADHICS): identity, dummy ports, ADHICS findings, script links.
+- **Findings** — ADHICS gaps (control ID, title, asset, status). No CVE/CVSS. CVE later.
+- **ADHICS** — catalog CRUD (id, domain, description, status) in local state; links to script and findings.
+- **Scripts** — multiple stubs per ADHICS control. Add is a dialog. **Control ID** from the catalog. **Run via** WinRM or Nmap. WinRM body uses `Invoke-Command -ComputerName {{ComputerName}}`; the runner replaces `{{ComputerName}}` with each host. Uniform JSON. Local only; not executed. Success save shows a toast.
+- **Report** — print-like preview (clinic header, KPIs, top ADHICS findings, gaps, inventory excerpt). No PDF file.
+
+Live later: scripts stored in main (`%APPDATA%\NetXScan\scripts\` + SQLite metadata); WinRM runs them. Do not add that until asked.

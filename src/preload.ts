@@ -11,6 +11,11 @@ const api: NetXScanApi = Object.freeze({
     ipcRenderer.invoke(ipcChannels.login, { username, password }),
   logout: () => ipcRenderer.invoke(ipcChannels.logout),
   getSession: () => ipcRenderer.invoke(ipcChannels.getSession),
+  listUsers: () => ipcRenderer.invoke(ipcChannels.userList),
+  addUser: (username, password, role) =>
+    ipcRenderer.invoke(ipcChannels.userAdd, { username, password, role }),
+  updateUser: (id, input) => ipcRenderer.invoke(ipcChannels.userUpdate, { id, ...input }),
+  deleteUser: (id) => ipcRenderer.invoke(ipcChannels.userDelete, { id }),
   runScan: (target, mode) =>
     ipcRenderer.invoke(ipcChannels.scanRun, { target, mode }),
   onScanHostFound: (listener) => {
@@ -31,8 +36,16 @@ const api: NetXScanApi = Object.freeze({
   listCategories: () => ipcRenderer.invoke(ipcChannels.categoryList),
   addCategory: (name, icon) =>
     ipcRenderer.invoke(ipcChannels.categoryAdd, { name, icon }),
+  updateCategory: (id, name, icon) =>
+    ipcRenderer.invoke(ipcChannels.categoryUpdate, { id, name, icon }),
+  deleteCategory: (id) => ipcRenderer.invoke(ipcChannels.categoryDelete, { id }),
   listLocations: () => ipcRenderer.invoke(ipcChannels.locationList),
   addLocation: (name) => ipcRenderer.invoke(ipcChannels.locationAdd, { name }),
+  updateLocation: (id, name) =>
+    ipcRenderer.invoke(ipcChannels.locationUpdate, { id, name }),
+  deleteLocation: (id) => ipcRenderer.invoke(ipcChannels.locationDelete, { id }),
+  getCompany: () => ipcRenderer.invoke(ipcChannels.companyGet),
+  updateCompany: (profile) => ipcRenderer.invoke(ipcChannels.companyUpdate, profile),
   checkAccessibility: (ids) =>
     ipcRenderer.invoke(ipcChannels.assetsCheckAccessibility, { ids }),
   onWinrmProgress: (listener) => {

@@ -6,11 +6,15 @@ import {
   addLocation,
   deleteAsset,
   deleteAssets,
+  deleteCategory,
+  deleteLocation,
   getAssetById,
   listAssets,
   listCategories,
   listLocations,
   updateAsset,
+  updateCategory,
+  updateLocation,
   updateWinrm,
 } from './repository';
 import { errorMessage } from '../ipc/error-message';
@@ -132,6 +136,47 @@ export function registerAssetIpc(): void {
     }
   });
 
+  ipcMain.handle(ipcChannels.categoryUpdate, (_event, payload: unknown) => {
+    try {
+      requireRole('administrator');
+      if (!payload || typeof payload !== 'object') {
+        return { ok: false, error: 'Invalid category.' };
+      }
+      const body = payload as { id?: unknown; name?: unknown; icon?: unknown };
+      const id = Number(body.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return { ok: false, error: 'Invalid category.' };
+      }
+      const updated = updateCategory(id, String(body.name ?? ''), String(body.icon ?? 'Tag'));
+      if ('error' in updated) {
+        return { ok: false, error: updated.error };
+      }
+      return { ok: true, categories: listCategories() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(ipcChannels.categoryDelete, (_event, payload: unknown) => {
+    try {
+      requireRole('administrator');
+      if (!payload || typeof payload !== 'object') {
+        return { ok: false, error: 'Invalid category.' };
+      }
+      const id = Number((payload as { id?: unknown }).id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return { ok: false, error: 'Invalid category.' };
+      }
+      const result = deleteCategory(id);
+      if ('error' in result) {
+        return { ok: false, error: result.error };
+      }
+      return { ok: true, categories: listCategories() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
   ipcMain.handle(ipcChannels.locationList, () => {
     try {
       requireSession();
@@ -151,6 +196,47 @@ export function registerAssetIpc(): void {
       const created = addLocation(name);
       if ('error' in created) {
         return { ok: false, error: created.error };
+      }
+      return { ok: true, locations: listLocations() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(ipcChannels.locationUpdate, (_event, payload: unknown) => {
+    try {
+      requireRole('administrator');
+      if (!payload || typeof payload !== 'object') {
+        return { ok: false, error: 'Invalid location.' };
+      }
+      const body = payload as { id?: unknown; name?: unknown };
+      const id = Number(body.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return { ok: false, error: 'Invalid location.' };
+      }
+      const updated = updateLocation(id, String(body.name ?? ''));
+      if ('error' in updated) {
+        return { ok: false, error: updated.error };
+      }
+      return { ok: true, locations: listLocations() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(ipcChannels.locationDelete, (_event, payload: unknown) => {
+    try {
+      requireRole('administrator');
+      if (!payload || typeof payload !== 'object') {
+        return { ok: false, error: 'Invalid location.' };
+      }
+      const id = Number((payload as { id?: unknown }).id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return { ok: false, error: 'Invalid location.' };
+      }
+      const result = deleteLocation(id);
+      if ('error' in result) {
+        return { ok: false, error: result.error };
       }
       return { ok: true, locations: listLocations() };
     } catch (error) {

@@ -18,4 +18,6 @@ Keep this layout:
 
 Do not put Node, `fs`, `child_process`, DB, or Electron APIs in React. Do not use `nodeIntegration`. Do not call `ipcRenderer` from `src/ui/`.
 
-This is a rebuild. Add domains one at a time: channel → preload type → handler → UI. Current product: auth, scan, and assets per `docs/product-context.md`. Do not restore nmap, NVD, assessment scripts, findings, company, or audit unless asked.
+This is a rebuild. Add live domains one at a time: channel → preload type → handler → UI. Current live product: auth, scan, and assets per `docs/product-context.md`.
+
+Prototype screens under `src/ui/` (Dashboard, Findings, ADHICS, Scripts, Report, dummy asset detail) use dummy data only. Live Inventory is `AssetManagerPanel`. Do not add IPC, SQLite, NVD, or a PowerShell runner for prototype views until asked.

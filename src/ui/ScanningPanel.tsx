@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { ScanHost } from '../shared/asset-types';
+import { showSaveSuccess } from './show-save-success';
 
 export function ScanningPanel() {
   const [target, setTarget] = useState('');
@@ -78,6 +79,7 @@ export function ScanningPanel() {
       return;
     }
     setMessage(`Added ${result.added}; skipped ${result.skipped} already saved.`);
+    showSaveSuccess();
   };
 
   return (
@@ -105,7 +107,7 @@ export function ScanningPanel() {
           disabled={busy || selected.size === 0}
           onClick={() => void addSelected()}
         >
-          Add to Asset Manager
+          Add to Inventory
         </Button>
       </div>
       {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
