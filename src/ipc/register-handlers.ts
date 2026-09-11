@@ -6,7 +6,7 @@ import { registerAuthIpc } from '../auth/register-auth-ipc';
 import { registerScanIpc } from '../scan/register-scan-ipc';
 import { registerAssetIpc } from '../assets/register-asset-ipc';
 import { registerCompanyIpc } from '../company/register-company-ipc';
-import { requireSession } from '../auth/session';
+import { requireAppSession } from '../auth/session';
 import { errorMessage } from './error-message';
 import { ipcChannels } from '../shared/ipc-channels';
 
@@ -18,7 +18,7 @@ export async function registerIpcHandlers(): Promise<void> {
 
   ipcMain.handle(ipcChannels.ping, () => {
     try {
-      requireSession();
+      requireAppSession();
       return 'pong';
     } catch (error) {
       throw new Error(errorMessage(error));

@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { requireRole, requireSession } from '../auth/session';
+import { requireRole, requireAppSession } from '../auth/session';
 import { errorMessage } from '../ipc/error-message';
 import { ipcChannels } from '../shared/ipc-channels';
 import { getCompanyProfile, updateCompanyProfile } from './repository';
@@ -11,7 +11,7 @@ function asString(value: unknown): string {
 export function registerCompanyIpc(): void {
   ipcMain.handle(ipcChannels.companyGet, () => {
     try {
-      requireSession();
+      requireAppSession();
       return { ok: true, profile: getCompanyProfile() };
     } catch (error) {
       return { ok: false, error: errorMessage(error) };

@@ -5,6 +5,7 @@ import { AssetDetailPanel } from './AssetDetailPanel';
 import { AssetManagerPanel } from './AssetManagerPanel';
 import { DashboardPanel } from './DashboardPanel';
 import { FindingsPanel } from './FindingsPanel';
+import { FirstLoginSetup } from './FirstLoginSetup';
 import { LoginView } from './LoginView';
 import { ReportPanel } from './ReportPanel';
 import { ScanningPanel } from './ScanningPanel';
@@ -119,6 +120,17 @@ export function App() {
     return (
       <LoginView
         onLoggedIn={() => {
+          void refreshSession();
+        }}
+      />
+    );
+  }
+
+  if (session.setupRequired) {
+    return (
+      <FirstLoginSetup
+        session={session}
+        onDone={() => {
           void refreshSession();
         }}
       />

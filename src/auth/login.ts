@@ -1,13 +1,7 @@
 import bcrypt from 'bcryptjs';
-import { getDb } from '../db/client';
-import type { LoginResult, UserRole } from '../shared/auth-types';
+import type { LoginResult } from '../shared/auth-types';
 import { setSession } from './session';
-
-type UserRow = {
-  username: string;
-  password_hash: string;
-  role: string;
-};
+import { anyAuthenticatorEnrolled, loadAuthRow, publicSessionFromRow } from './totp';
 
 export async function login(payload: unknown): Promise<LoginResult> {
   if (!payload || typeof payload !== 'object') {
@@ -21,10 +15,7 @@ export async function login(payload: unknown): Promise<LoginResult> {
     return { ok: false, error: 'Username and password are required.' };
   }
 
-  const row = getDb()
-    .prepare('SELECT username, password_hash, role FROM users WHERE username = ?')
-    .get(username) as UserRow | undefined;
-
+  const row = loadAuthRow(username);
   if (!row) {
     return { ok: false, error: 'Invalid username or password.' };
   }
@@ -34,8 +25,14 @@ export async function login(payload: unknown): Promise<LoginResult> {
     return { ok: false, error: 'Invalid username or password.' };
   }
 
-  const role: UserRole = row.role === 'administrator' ? 'administrator' : 'user';
-  const session = { username: row.username, role };
+  const session = publicSessionFromRow(row);
+  if (!anyAuthenticatorEnrolled() && session.role !== 'administrator') {
+    return {
+      ok: false,
+      error: 'Sign in with the default administrator account to finish first-time setup.',
+    };
+  }
+
   setSession(session);
   return { ok: true, session };
 }

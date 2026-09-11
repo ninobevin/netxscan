@@ -1,4 +1,4 @@
-import type { LoginResult, PublicSession, UserListResult, UserRole } from './auth-types';
+import type { LoginResult, PublicSession, TotpBeginResult, UserListResult, UserRole } from './auth-types';
 import type {
   AddToAssetsResult,
   AssetListResult,
@@ -17,6 +17,14 @@ export type NetXScanApi = {
   login: (username: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
   getSession: () => Promise<PublicSession | null>;
+  changePassword: (currentPassword: string, nextPassword: string) => Promise<LoginResult>;
+  beginTotpSetup: () => Promise<TotpBeginResult>;
+  confirmTotpSetup: (code: string) => Promise<LoginResult>;
+  forgotPassword: (
+    username: string,
+    authenticatorCode: string,
+    nextPassword: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   listUsers: () => Promise<UserListResult>;
   addUser: (username: string, password: string, role: UserRole) => Promise<UserListResult>;
   updateUser: (

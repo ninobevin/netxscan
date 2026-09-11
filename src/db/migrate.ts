@@ -75,7 +75,10 @@ export function runMigrations(db: AppDatabase): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('administrator', 'user'))
+      role TEXT NOT NULL CHECK (role IN ('administrator', 'user')),
+      must_change_password INTEGER NOT NULL DEFAULT 0,
+      totp_secret TEXT,
+      totp_enabled INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -168,13 +171,34 @@ export function runMigrations(db: AppDatabase): void {
     `);
   }
 
+  const userColumns = columnNames(db, 'users');
+  const addedPasswordFlag =
+    userColumns.includes('id') && !userColumns.includes('must_change_password');
+  if (addedPasswordFlag) {
+    db.exec(
+      'ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;',
+    );
+  }
+  if (userColumns.includes('id') && !userColumns.includes('totp_secret')) {
+    db.exec('ALTER TABLE users ADD COLUMN totp_secret TEXT;');
+  }
+  if (userColumns.includes('id') && !userColumns.includes('totp_enabled')) {
+    db.exec('ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;');
+  }
+
   const userCount = db.prepare('SELECT COUNT(*) AS n FROM users').get();
   if (!userCount || Number(userCount.n) === 0) {
     const insert = db.prepare(
-      'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+      `INSERT INTO users (username, password_hash, role, must_change_password, totp_enabled)
+       VALUES (?, ?, ?, ?, 0)`,
     );
-    insert.run('admin', bcrypt.hashSync('Admin123!', 10), 'administrator');
-    insert.run('support', bcrypt.hashSync('Support123!', 10), 'user');
+    insert.run('admin', bcrypt.hashSync('Admin123!', 10), 'administrator', 1);
+    insert.run('support', bcrypt.hashSync('Support123!', 10), 'user', 0);
+  } else if (addedPasswordFlag) {
+    db.prepare(
+      `UPDATE users SET must_change_password = 1
+       WHERE username = 'admin' AND IFNULL(totp_enabled, 0) = 0`,
+    ).run();
   }
 
   const insertCategory = db.prepare(

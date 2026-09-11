@@ -22,8 +22,16 @@ export function requireSession(): PublicSession {
   return session;
 }
 
-export function requireRole(role: UserRole): PublicSession {
+export function requireAppSession(): PublicSession {
   const active = requireSession();
+  if (active.setupRequired) {
+    throw new Error('Finish account setup first.');
+  }
+  return active;
+}
+
+export function requireRole(role: UserRole): PublicSession {
+  const active = requireAppSession();
   if (active.role !== role) {
     throw new Error('Not allowed.');
   }

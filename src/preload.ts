@@ -11,6 +11,16 @@ const api: NetXScanApi = Object.freeze({
     ipcRenderer.invoke(ipcChannels.login, { username, password }),
   logout: () => ipcRenderer.invoke(ipcChannels.logout),
   getSession: () => ipcRenderer.invoke(ipcChannels.getSession),
+  changePassword: (currentPassword, nextPassword) =>
+    ipcRenderer.invoke(ipcChannels.changePassword, { currentPassword, nextPassword }),
+  beginTotpSetup: () => ipcRenderer.invoke(ipcChannels.totpBegin),
+  confirmTotpSetup: (code) => ipcRenderer.invoke(ipcChannels.totpConfirm, { code }),
+  forgotPassword: (username, authenticatorCode, nextPassword) =>
+    ipcRenderer.invoke(ipcChannels.forgotPassword, {
+      username,
+      code: authenticatorCode,
+      password: nextPassword,
+    }),
   listUsers: () => ipcRenderer.invoke(ipcChannels.userList),
   addUser: (username, password, role) =>
     ipcRenderer.invoke(ipcChannels.userAdd, { username, password, role }),

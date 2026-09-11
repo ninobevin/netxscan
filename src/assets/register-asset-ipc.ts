@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { ipcChannels } from '../shared/ipc-channels';
-import { requireRole, requireSession } from '../auth/session';
+import { requireRole, requireAppSession } from '../auth/session';
 import {
   addCategory,
   addLocation,
@@ -26,7 +26,7 @@ let checking = false;
 export function registerAssetIpc(): void {
   ipcMain.handle(ipcChannels.assetList, () => {
     try {
-      requireSession();
+      requireAppSession();
       return { ok: true, assets: listAssets() };
     } catch (error) {
       return { ok: false, error: errorMessage(error) };
@@ -111,7 +111,7 @@ export function registerAssetIpc(): void {
 
   ipcMain.handle(ipcChannels.categoryList, () => {
     try {
-      requireSession();
+      requireAppSession();
       return { ok: true, categories: listCategories() };
     } catch (error) {
       return { ok: false, error: errorMessage(error) };
@@ -179,7 +179,7 @@ export function registerAssetIpc(): void {
 
   ipcMain.handle(ipcChannels.locationList, () => {
     try {
-      requireSession();
+      requireAppSession();
       return { ok: true, locations: listLocations() };
     } catch (error) {
       return { ok: false, error: errorMessage(error) };

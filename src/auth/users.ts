@@ -1,9 +1,9 @@
 import bcrypt from 'bcryptjs';
 import { getDb } from '../db/client';
 import type { AppUser, UserRole } from '../shared/auth-types';
+import { parsePassword } from './password';
 import { getActiveSession, setSession } from './session';
-
-const MIN_PASSWORD = 8;
+import { refreshSessionFor } from './totp';
 
 function mapRole(value: unknown): UserRole {
   if (value === 'administrator') {
@@ -59,23 +59,21 @@ function parseRole(value: unknown): UserRole | { error: string } {
   return { error: 'Role must be Administrator or User.' };
 }
 
-function parsePassword(value: unknown, required: boolean): string | null | { error: string } {
-  const password = typeof value === 'string' ? value : '';
-  if (!password) {
-    return required ? { error: 'Password is required.' } : null;
-  }
-  if (password.length < MIN_PASSWORD) {
-    return { error: `Password must be at least ${MIN_PASSWORD} characters.` };
-  }
-  return password;
-}
-
 function syncSession(previousUsername: string, next: AppUser): void {
   const active = getActiveSession();
   if (!active || active.username !== previousUsername) {
     return;
   }
-  setSession({ username: next.username, role: next.role });
+  const session = refreshSessionFor(next.username);
+  if (!session) {
+    setSession({
+      username: next.username,
+      role: next.role,
+      setupRequired: true,
+      mustChangePassword: false,
+      totpEnabled: false,
+    });
+  }
 }
 
 export function addUser(
@@ -97,7 +95,10 @@ export function addUser(
   }
   try {
     getDb()
-      .prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)')
+      .prepare(
+        `INSERT INTO users (username, password_hash, role, must_change_password, totp_enabled)
+         VALUES (?, ?, ?, 0, 0)`,
+      )
       .run(username, bcrypt.hashSync(password, 10), role);
   } catch {
     return { error: 'A user with that username already exists.' };

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { ipcChannels } from '../shared/ipc-channels';
-import { requireSession } from '../auth/session';
+import { requireAppSession } from '../auth/session';
 import { errorMessage } from '../ipc/error-message';
 import { expandScanTarget } from './expand-targets';
 import { pingHost } from './ping-host';
@@ -14,7 +14,7 @@ let scanning = false;
 export function registerScanIpc(): void {
   ipcMain.handle(ipcChannels.scanRun, async (event, payload: unknown) => {
     try {
-      requireSession();
+      requireAppSession();
     } catch (error) {
       return { ok: false, error: errorMessage(error) };
     }
@@ -86,7 +86,7 @@ export function registerScanIpc(): void {
 
   ipcMain.handle(ipcChannels.scanAddToAssets, (_event, payload: unknown) => {
     try {
-      requireSession();
+      requireAppSession();
     } catch (error) {
       return { ok: false, error: errorMessage(error) };
     }

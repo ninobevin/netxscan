@@ -75,10 +75,14 @@ Session lives **in memory** in the main process. Renderer uses `getSession` (and
 
 SQLite file: `%APPDATA%\NetXScan\netxscan.sqlite` (sql.js WASM; no Visual Studio / node-gyp).
 
-IPC: `auth:login`, `auth:logout`, `auth:get-session`.  
-Payloads validated in main. Failures: `{ ok: false, error }`. Success login: `{ ok: true, session }` where session is `{ username, role }` only (no hash).
+IPC: `auth:login`, `auth:logout`, `auth:get-session`, `auth:change-password`, `auth:totp-begin`, `auth:totp-confirm`, `auth:forgot-password`.  
+Payloads validated in main. Failures: `{ ok: false, error }`. Success login: `{ ok: true, session }` where session is `{ username, role, setupRequired, mustChangePassword, totpEnabled }` (no hash, no TOTP secret).
 
-Other feature IPC requires an active session. Mutating asset/category/WinRM handlers require `administrator`.
+First launch: only the default administrator (`admin` / `Admin123!`) can sign in until authenticator enrollment exists. After that login the app requires a new password, then a Google Authenticator QR scan and code confirmation. Feature IPC requires a completed setup (`setupRequired` false).
+
+Forgot password on the login screen: username + authenticator code + new password. No session is created until the user signs in again.
+
+Other feature IPC requires an active session with setup complete. Mutating asset/category/WinRM handlers require `administrator`.
 
 ## Module 2 — Scanning
 
@@ -150,7 +154,7 @@ React  →  window.netxscan  →  preload invoke/on  →  ipcMain  →  SQLite /
 
 ## Data (SQLite)
 
-- `users` — username unique, password_hash, role (`administrator` | `user`)
+- `users` — username unique, password_hash, role (`administrator` | `user`), must_change_password, totp_secret, totp_enabled
 - `categories` — name unique, icon (lucide name); six seeds with the icons above (UI label: Device)
 - `locations` — name unique (user-defined)
 - `assets` — ipv4 unique, hostname nullable, mac_address nullable, category_id nullable FK, location_id nullable FK, winrm_ok, os_version nullable, created_at, updated_at

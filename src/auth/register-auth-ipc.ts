@@ -2,7 +2,14 @@ import { ipcMain } from 'electron';
 import { errorMessage } from '../ipc/error-message';
 import { ipcChannels } from '../shared/ipc-channels';
 import { login } from './login';
-import { clearSession, getActiveSession, requireRole } from './session';
+import { clearSession, getActiveSession, requireRole, requireSession } from './session';
+import {
+  beginTotpSetup,
+  changeOwnPassword,
+  clearPendingTotp,
+  confirmTotpSetup,
+  resetPasswordWithTotp,
+} from './totp';
 import { addUser, deleteUser, listUsers, updateUser } from './users';
 
 function asObject(payload: unknown): Record<string, unknown> | null {
@@ -18,11 +25,75 @@ export function registerAuthIpc(): void {
   });
 
   ipcMain.handle(ipcChannels.logout, () => {
+    const active = getActiveSession();
+    clearPendingTotp(active?.username);
     clearSession();
   });
 
   ipcMain.handle(ipcChannels.getSession, () => {
     return getActiveSession();
+  });
+
+  ipcMain.handle(ipcChannels.changePassword, async (_event, payload: unknown) => {
+    try {
+      requireSession();
+      const body = asObject(payload);
+      if (!body) {
+        return { ok: false, error: 'Invalid password change.' };
+      }
+      const result = await changeOwnPassword(
+        String(body.currentPassword ?? ''),
+        body.nextPassword,
+      );
+      if ('error' in result) {
+        return { ok: false, error: result.error };
+      }
+      return { ok: true, session: result };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(ipcChannels.totpBegin, async () => {
+    try {
+      requireSession();
+      const result = await beginTotpSetup();
+      if ('error' in result) {
+        return { ok: false, error: result.error };
+      }
+      return { ok: true, qrDataUrl: result.qrDataUrl };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(ipcChannels.totpConfirm, (_event, payload: unknown) => {
+    try {
+      requireSession();
+      const body = asObject(payload);
+      if (!body) {
+        return { ok: false, error: 'Invalid authenticator code.' };
+      }
+      const result = confirmTotpSetup(String(body.code ?? ''));
+      if ('error' in result) {
+        return { ok: false, error: result.error };
+      }
+      return { ok: true, session: result };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(ipcChannels.forgotPassword, async (_event, payload: unknown) => {
+    const body = asObject(payload);
+    if (!body) {
+      return { ok: false, error: 'Username, authenticator code, and password are required.' };
+    }
+    const result = await resetPasswordWithTotp(body.username, body.code, body.password);
+    if ('error' in result) {
+      return { ok: false, error: result.error };
+    }
+    return { ok: true };
   });
 
   ipcMain.handle(ipcChannels.userList, () => {
