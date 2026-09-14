@@ -2,8 +2,8 @@
 
 Source of truth for the current rebuild. Later modules will append here. Stack: Electron Forge, Vite, React, TypeScript, Tailwind, secure IPC (`window.netxscan` only). Renderer has no Node.
 
-**This pass:** Authentication, Scanning, Inventory, company Settings, shadcn UI.  
-**Not this pass:** NVD, findings as live data, audit, PowerShell assessment scripts. Nmap in Scanning is host discovery only (no ports). Nmap is also a MAC fallback on Check accessibility.
+**This pass:** Authentication, Scanning, Inventory, company Settings, ADHICS catalog, assessment scripts metadata, findings, compliance PDF.  
+**Not this pass:** NVD, audit, live PowerShell/Nmap assessment execution. Nmap in Scanning is host discovery only (no ports). Nmap is also a MAC fallback on Check accessibility.
 
 ## Background
 
@@ -139,7 +139,7 @@ IPC: `company:get`, `company:update` (admin), `user:list`, `user:add`, `user:upd
 
 - **shadcn/ui** + **lucide-react** + loading **skeletons** / short view-switch transition.
 - Keep the clinic teal palette via CSS variables (light theme).
-- After login: nav **Scanning** | **Inventory** (live device/location assignment) | prototype tabs (Dashboard, Findings, ADHICS, Scripts, Report) | **Settings** (live company profile; admin user management). User menu (avatar) for log out.
+- After login: nav **Scanning** | **Inventory** (live device/location assignment) | Dashboard (dummy layout) | **Findings** | **ADHICS** | **Scripts** | **Report** | **Settings**. User menu (avatar) for log out.
 - Login view if there is no session.
 
 ## Architecture rules
@@ -159,21 +159,26 @@ React  →  window.netxscan  →  preload invoke/on  →  ipcMain  →  SQLite /
 - `locations` — name unique (user-defined)
 - `assets` — ipv4 unique, hostname nullable, mac_address nullable, category_id nullable FK, location_id nullable FK, winrm_ok, os_version nullable, created_at, updated_at
 - `company_profile` — single row (`id = 1`): name, address, contact, notes, updated_at
+- `adhics_domains` / `adhics_families` / `adhics_controls` — ADHICS V2 catalog (domains 1–11) is seeded on first launch (`app_meta.adhics_catalog_version`). Admin can edit or delete afterward. Delete blocked if children exist.
+- `assessment_scripts` — FK to dotted control only. name, runner, body, last_result (`pass`|`fail`).
+- `findings` — one row per failed script (`script_id` unique). optional asset_id. status open/acknowledged/closed.
+
+IPC: `adhics:tree`, `adhics:save-domain`, `adhics:delete-domain`, `adhics:save-family`, `adhics:delete-family`, `adhics:save-control`, `adhics:delete-control`, `adhics:leaf-list`, `adhics:report-data`, `script:list`, `script:save`, `script:delete`, `script:set-result`, `finding:list`, `finding:update-status`, `report:save-pdf`.
 
 ## Later (do not build now)
 
-Nmap ports/OS as a live module, NVD/CVE placement, audit trail, PowerShell script runner. Report/Dashboard still use dummy clinic copy until wired to `company_profile`.
+Nmap ports/OS as a live module, NVD/CVE placement, audit trail, live PowerShell/Nmap script runner. Dashboard still uses dummy clinic copy until wired to `company_profile` and live inventory.
 
 ## Prototype GUI (dummy data only)
 
 Renderer-only screens for layout. No new IPC, no SQLite, no NVD, no PowerShell spawn.
 
 - **Inventory** (live): former Asset Manager — assign device and location, Check accessibility. Scanning **Add to Inventory**.
-- **Dashboard** — KPI cards, recent ADHICS findings, assets needing attention.
-- **Asset detail** (dummy drill-in from Dashboard / Findings / ADHICS): identity, dummy ports, ADHICS findings, script links.
-- **Findings** — ADHICS gaps (control ID, title, asset, status). No CVE/CVSS. CVE later.
-- **ADHICS** — catalog CRUD (id, domain, description, status) in local state; links to script and findings.
-- **Scripts** — multiple stubs per ADHICS control. Add is a dialog. **Control ID** from the catalog. **Run via** WinRM or Nmap. WinRM body uses `Invoke-Command -ComputerName {{ComputerName}}`; the runner replaces `{{ComputerName}}` with each host. Uniform JSON. Local only; not executed. Success save shows a toast.
-- **Report** — print-like preview (clinic header, KPIs, top ADHICS findings, gaps, inventory excerpt). No PDF file.
+- **Dashboard** — KPI cards, recent ADHICS findings, assets needing attention (dummy clinic assets until wired).
+- **Asset detail** (dummy drill-in from Dashboard): identity, dummy ports, dummy findings/script links.
+- **Findings** — live ADHICS gaps from SQLite (control ID, script title, asset, status). Fail = 1 finding per script. No CVE/CVSS.
+- **ADHICS** — live tree seeded with ADHICS V2 (Domain 1–11). Admin add/edit/delete at each level. Delete refused if children still use that id. Scripts only on the leaf; Pass/Fail on each script.
+- **Scripts** — live metadata on dotted controls. First launch seeds dummy WinRM stubs (including TLS 1.0 check on CO 12.1). Add/edit/delete. Fail writes one finding; pass removes it. Bodies are not executed.
+- **Report** — one PDF summarizing **all** domains that have findings. Dummy units (RCPT-PC-01, etc.) fill in when a finding has no inventory asset. Company header, then each domain → `CO x.y` → units table. **IT assigned** signature once at the end.
 
 Live later: scripts stored in main (`%APPDATA%\NetXScan\scripts\` + SQLite metadata); WinRM runs them. Do not add that until asked.

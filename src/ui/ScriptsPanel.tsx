@@ -12,62 +12,56 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { showSaveSuccess } from './show-save-success';
-import {
-  DUMMY_SCRIPTS,
-  applyComputerName,
-  defaultNmapBody,
-  defaultWinrmBody,
-  type DummyControl,
-  type DummyScript,
-  type ScriptRunner,
-} from './prototype/dummy-data';
+import { applyComputerName, defaultNmapBody, defaultWinrmBody } from './prototype/dummy-data';
+import type { AdhicsScript, LeafControlOption, ScriptRunner } from '../shared/adhics-types';
 
 type ScriptsPanelProps = {
-  controls: DummyControl[];
-  focusControlId?: string | null;
+  focusControlCode?: string | null;
+};
+
+type Draft = {
+  id?: number;
+  controlId: number;
+  name: string;
+  runner: ScriptRunner;
+  enabled: boolean;
+  timeoutSec: number;
+  body: string;
 };
 
 type ScriptFieldsProps = {
   prefix: string;
-  value: DummyScript;
-  controls: DummyControl[];
-  onChange: (next: DummyScript) => void;
+  value: Draft;
+  controls: LeafControlOption[];
+  onChange: (next: Draft) => void;
 };
 
-function controlLabel(controls: DummyControl[], id: string): string {
+function controlLabel(controls: LeafControlOption[], id: number): string {
   const control = controls.find((item) => item.id === id);
-  return control ? `${control.id} · ${control.domain} · ${control.description}` : id;
+  return control ? `${control.code} · ${control.title}` : String(id);
 }
 
 function ScriptFields({ prefix, value, controls, onChange }: ScriptFieldsProps) {
   const previewHost = 'RCPT-PC-01';
+  const selected = controls.find((item) => item.id === value.controlId);
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Control ID</Label>
           <Select
-            value={value.controlId}
-            onValueChange={(next) => onChange({ ...value, controlId: next })}
+            value={String(value.controlId)}
+            onValueChange={(next) => onChange({ ...value, controlId: Number(next) })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select ADHICS control" />
             </SelectTrigger>
             <SelectContent>
               {controls.map((control) => (
-                <SelectItem key={control.id} value={control.id}>
+                <SelectItem key={control.id} value={String(control.id)}>
                   {controlLabel(controls, control.id)}
                 </SelectItem>
               ))}
-              {controls.some((control) => control.id === value.controlId)
-                ? null
-                : value.controlId
-                  ? (
-                      <SelectItem value={value.controlId}>
-                        {value.controlId} (removed from catalog)
-                      </SelectItem>
-                    )
-                  : null}
             </SelectContent>
           </Select>
         </div>
@@ -95,9 +89,7 @@ function ScriptFields({ prefix, value, controls, onChange }: ScriptFieldsProps) 
         <Label>Run via</Label>
         <Select
           value={value.runner}
-          onValueChange={(next) =>
-            onChange({ ...value, runner: next as ScriptRunner })
-          }
+          onValueChange={(next) => onChange({ ...value, runner: next as ScriptRunner })}
         >
           <SelectTrigger>
             <SelectValue />
@@ -127,8 +119,8 @@ function ScriptFields({ prefix, value, controls, onChange }: ScriptFieldsProps) 
           onChange={(event) => onChange({ ...value, body: event.target.value })}
         />
         <p className="text-xs text-muted-foreground">
-          Use <code>{'{{ComputerName}}'}</code> for the target. WinRM becomes{' '}
-          <code>Invoke-Command -ComputerName RCPT-PC-01</code> when run against that host.
+          Use <code>{'{{ComputerName}}'}</code> for the target.
+          {selected ? ` Bound to ${selected.code}.` : null}
         </p>
         {value.body.includes('{{ComputerName}}') ? (
           <p className="font-mono text-[11px] text-muted-foreground">
@@ -140,44 +132,133 @@ function ScriptFields({ prefix, value, controls, onChange }: ScriptFieldsProps) 
   );
 }
 
-export function ScriptsPanel({ controls, focusControlId }: ScriptsPanelProps) {
-  const [scripts, setScripts] = useState<DummyScript[]>(DUMMY_SCRIPTS);
-  const [selectedId, setSelectedId] = useState(scripts[0]?.id ?? 0);
-  const [draft, setDraft] = useState<DummyScript | null>(
-    scripts[0] ? { ...scripts[0] } : null,
-  );
+function toDraft(script: AdhicsScript): Draft {
+  return {
+    id: script.id,
+    controlId: script.controlId,
+    name: script.name,
+    runner: script.runner,
+    enabled: script.enabled,
+    timeoutSec: script.timeoutSec,
+    body: script.body,
+  };
+}
+
+export function ScriptsPanel({ focusControlCode }: ScriptsPanelProps) {
+  const [controls, setControls] = useState<LeafControlOption[]>([]);
+  const [scripts, setScripts] = useState<AdhicsScript[]>([]);
+  const [selectedId, setSelectedId] = useState(0);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [addDraft, setAddDraft] = useState<DummyScript | null>(null);
+  const [addDraft, setAddDraft] = useState<Draft | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!focusControlId) {
+  const load = async () => {
+    const [leaf, list] = await Promise.all([
+      window.netxscan.listLeafControls(),
+      window.netxscan.listAssessmentScripts(),
+    ]);
+    if (!leaf.ok) {
+      setMessage(leaf.error);
       return;
     }
-    const next = scripts.find((script) => script.controlId === focusControlId);
+    if (!list.ok) {
+      setMessage(list.error);
+      return;
+    }
+    setControls(leaf.controls);
+    setScripts(list.scripts);
+    setMessage(null);
+    return { controls: leaf.controls, scripts: list.scripts };
+  };
+
+  useEffect(() => {
+    void (async () => {
+      const loaded = await load();
+      if (!loaded) {
+        return;
+      }
+      const focus = focusControlCode
+        ? loaded.scripts.find((script) => script.controlCode === focusControlCode)
+        : loaded.scripts[0];
+      if (focus) {
+        setSelectedId(focus.id);
+        setDraft(toDraft(focus));
+      }
+    })();
+    // Load once; focus applied when scripts arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!focusControlCode) {
+      return;
+    }
+    const next = scripts.find((script) => script.controlCode === focusControlCode);
     if (next) {
       setSelectedId(next.id);
-      setDraft({ ...next });
+      setDraft(toDraft(next));
     }
-  }, [focusControlId, scripts]);
-
-  const show = draft;
+  }, [focusControlCode, scripts]);
 
   const select = (id: number) => {
     const next = scripts.find((script) => script.id === id) ?? null;
     setSelectedId(id);
-    setDraft(next ? { ...next } : null);
+    setDraft(next ? toDraft(next) : null);
     setMessage(null);
   };
 
-  const onSave = () => {
-    if (!draft) {
+  const onSave = async () => {
+    if (!draft?.id) {
       return;
     }
-    setScripts((current) =>
-      current.map((script) => (script.id === draft.id ? draft : script)),
-    );
+    const result = await window.netxscan.saveAssessmentScript({
+      id: draft.id,
+      controlId: draft.controlId,
+      name: draft.name,
+      runner: draft.runner,
+      enabled: draft.enabled,
+      timeoutSec: draft.timeoutSec,
+      body: draft.body,
+    });
+    if (!result.ok) {
+      setMessage(result.error);
+      return;
+    }
+    setScripts(result.scripts);
     showSaveSuccess();
+  };
+
+  const onDelete = async () => {
+    if (!draft?.id) {
+      return;
+    }
+    const result = await window.netxscan.deleteAssessmentScript(draft.id);
+    if (!result.ok) {
+      setMessage(result.error);
+      return;
+    }
+    setScripts(result.scripts);
+    const next = result.scripts[0] ?? null;
+    setSelectedId(next?.id ?? 0);
+    setDraft(next ? toDraft(next) : null);
+    showSaveSuccess();
+  };
+
+  const setResult = async (result: 'pass' | 'fail') => {
+    if (!draft?.id) {
+      return;
+    }
+    const next = await window.netxscan.setScriptResult(draft.id, result);
+    if (!next.ok) {
+      setMessage(next.error);
+      return;
+    }
+    setScripts(next.scripts);
+    const updated = next.scripts.find((script) => script.id === draft.id);
+    if (updated) {
+      setDraft(toDraft(updated));
+    }
   };
 
   const openAdd = () => {
@@ -186,43 +267,44 @@ export function ScriptsPanel({ controls, focusControlId }: ScriptsPanelProps) {
       return;
     }
     const controlId = draft?.controlId ?? controls[0].id;
+    const code = controls.find((item) => item.id === controlId)?.code ?? 'CO';
     setAddDraft({
-      id: 0,
       controlId,
       name: '',
       runner: 'winrm',
       enabled: true,
       timeoutSec: 30,
-      body: defaultWinrmBody(controlId),
+      body: defaultWinrmBody(code),
     });
     setAddOpen(true);
     setMessage(null);
   };
 
-  const saveAdd = () => {
+  const saveAdd = async () => {
     if (!addDraft) {
       return;
     }
-    if (!addDraft.name.trim()) {
-      setMessage('Script name is required.');
+    const result = await window.netxscan.saveAssessmentScript(addDraft);
+    if (!result.ok) {
+      setMessage(result.error);
       return;
     }
-    const nextId = Math.max(0, ...scripts.map((script) => script.id)) + 1;
-    const created: DummyScript = {
-      ...addDraft,
-      id: nextId,
-      name: addDraft.name.trim(),
-    };
-    setScripts((current) => [...current, created]);
-    setSelectedId(created.id);
-    setDraft(created);
+    setScripts(result.scripts);
+    const created = result.scripts.find(
+      (script) =>
+        script.controlId === addDraft.controlId && script.name === addDraft.name.trim(),
+    );
+    if (created) {
+      setSelectedId(created.id);
+      setDraft(toDraft(created));
+    }
     setAddOpen(false);
     setAddDraft(null);
     showSaveSuccess();
   };
 
   const listed = [...scripts].sort((a, b) => {
-    const byControl = a.controlId.localeCompare(b.controlId);
+    const byControl = a.controlCode.localeCompare(b.controlCode);
     if (byControl !== 0) {
       return byControl;
     }
@@ -232,18 +314,24 @@ export function ScriptsPanel({ controls, focusControlId }: ScriptsPanelProps) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        A control can have multiple scripts. WinRM scripts use{' '}
-        <code className="text-xs">Invoke-Command -ComputerName {'{{ComputerName}}'}</code>
-        ; the app replaces the placeholder with each inventory hostname. Nmap scripts
-        use the same placeholder for IP/hostname.
+        Scripts attach only to dotted controls (CO 1.2, CO 2.3). Fail counts as one finding.
       </p>
-      {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
-      <div className="flex gap-2">
+      {message ? <p className="text-sm text-destructive">{message}</p> : null}
+      <div className="flex flex-wrap gap-2">
         <Button variant="secondary" onClick={openAdd} disabled={controls.length === 0}>
           New
         </Button>
-        <Button onClick={onSave} disabled={!draft}>
+        <Button onClick={() => void onSave()} disabled={!draft?.id}>
           Save
+        </Button>
+        <Button variant="secondary" onClick={() => void onDelete()} disabled={!draft?.id}>
+          Delete
+        </Button>
+        <Button variant="secondary" onClick={() => void setResult('pass')} disabled={!draft?.id}>
+          Pass
+        </Button>
+        <Button variant="secondary" onClick={() => void setResult('fail')} disabled={!draft?.id}>
+          Fail
         </Button>
       </div>
       <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
@@ -259,10 +347,10 @@ export function ScriptsPanel({ controls, focusControlId }: ScriptsPanelProps) {
               }
               onClick={() => select(script.id)}
             >
-              <p className="font-mono text-xs">{script.controlId}</p>
+              <p className="font-mono text-xs">{script.controlCode}</p>
               <p className="text-sm font-medium">{script.name}</p>
               <p className="text-xs text-muted-foreground">
-                {script.runner === 'nmap' ? 'Via Nmap' : 'WinRM'}
+                {script.runner === 'nmap' ? 'Via Nmap' : 'WinRM'} · {script.lastResult ?? 'unset'}
               </p>
               {script.enabled ? (
                 <Badge className="mt-1">enabled</Badge>
@@ -274,14 +362,9 @@ export function ScriptsPanel({ controls, focusControlId }: ScriptsPanelProps) {
             </button>
           ))}
         </div>
-        {show ? (
+        {draft ? (
           <div className="rounded-xl border bg-card p-4">
-            <ScriptFields
-              prefix="edit"
-              value={show}
-              controls={controls}
-              onChange={setDraft}
-            />
+            <ScriptFields prefix="edit" value={draft} controls={controls} onChange={setDraft} />
           </div>
         ) : null}
       </div>
@@ -297,24 +380,22 @@ export function ScriptsPanel({ controls, focusControlId }: ScriptsPanelProps) {
                 value={addDraft}
                 controls={controls}
                 onChange={(next) => {
-                  if (
-                    next.runner !== addDraft.runner ||
-                    next.controlId !== addDraft.controlId
-                  ) {
+                  if (next.runner !== addDraft.runner || next.controlId !== addDraft.controlId) {
+                    const code = controls.find((item) => item.id === next.controlId)?.code ?? 'CO';
                     const body =
-                      next.runner === 'nmap'
-                        ? defaultNmapBody(next.controlId)
-                        : defaultWinrmBody(next.controlId);
+                      next.runner === 'nmap' ? defaultNmapBody(code) : defaultWinrmBody(code);
+                    const prevCode =
+                      controls.find((item) => item.id === addDraft.controlId)?.code ?? 'CO';
                     const looksDefault =
-                      addDraft.body === defaultWinrmBody(addDraft.controlId) ||
-                      addDraft.body === defaultNmapBody(addDraft.controlId);
+                      addDraft.body === defaultWinrmBody(prevCode) ||
+                      addDraft.body === defaultNmapBody(prevCode);
                     setAddDraft(looksDefault ? { ...next, body } : next);
                     return;
                   }
                   setAddDraft(next);
                 }}
               />
-              <Button onClick={saveAdd}>Save</Button>
+              <Button onClick={() => void saveAdd()}>Save</Button>
             </div>
           ) : null}
         </DialogContent>

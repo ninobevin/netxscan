@@ -10,23 +10,21 @@ import {
 } from '@/components/ui/table';
 import { SeverityBadge } from './prototype/SeverityBadge';
 import {
+  DUMMY_CONTROLS,
   DUMMY_FINDINGS,
   assetById,
   findingsForAsset,
   scriptsForControl,
-  type DummyControl,
 } from './prototype/dummy-data';
 
 type AssetDetailPanelProps = {
   assetId: number;
-  controls: DummyControl[];
   onBack: () => void;
   onOpenScripts: (controlId: string) => void;
 };
 
 export function AssetDetailPanel({
   assetId,
-  controls,
   onBack,
   onOpenScripts,
 }: AssetDetailPanelProps) {
@@ -132,7 +130,7 @@ export function AssetDetailPanel({
           <p className="text-sm text-muted-foreground">No mapped controls.</p>
         ) : (
           controlIds.map((controlId) => {
-            const control = controls.find((item) => item.id === controlId);
+            const control = DUMMY_CONTROLS.find((item) => item.id === controlId);
             const linkedScripts = scriptsForControl(controlId);
             return (
               <div

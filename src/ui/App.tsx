@@ -13,7 +13,6 @@ import { ScriptsPanel } from './ScriptsPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { UserMenu } from './UserMenu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DUMMY_CONTROLS, type DummyControl } from './prototype/dummy-data';
 
 type NavId =
   | 'scanning'
@@ -49,7 +48,6 @@ export function App() {
   const [assetId, setAssetId] = useState<number | null>(null);
   const [detailOrigin, setDetailOrigin] = useState<NavId>('dashboard');
   const [scriptControlId, setScriptControlId] = useState<string | null>(null);
-  const [controls, setControls] = useState<DummyControl[]>(DUMMY_CONTROLS);
   const loadTimer = useRef<number | null>(null);
 
   const refreshSession = async () => {
@@ -190,29 +188,20 @@ export function App() {
         ) : view === 'assetDetail' && assetId !== null ? (
           <AssetDetailPanel
             assetId={assetId}
-            controls={controls}
             onBack={() => changeNav(detailOrigin)}
             onOpenScripts={openScripts}
           />
         ) : view === 'findings' ? (
-          <FindingsPanel
-            controls={controls}
-            onOpenAsset={(id) => openAsset(id, 'findings')}
-          />
+          <FindingsPanel onOpenAsset={(id) => openAsset(id, 'findings')} />
         ) : view === 'adhics' ? (
           <AdhicsPanel
-            controls={controls}
-            onControlsChange={setControls}
-            onOpenAsset={(id) => openAsset(id, 'adhics')}
+            session={session}
             onOpenScripts={openScripts}
           />
         ) : view === 'scripts' ? (
-          <ScriptsPanel
-            controls={controls}
-            focusControlId={scriptControlId}
-          />
+          <ScriptsPanel focusControlCode={scriptControlId} />
         ) : view === 'report' ? (
-          <ReportPanel controls={controls} />
+          <ReportPanel />
         ) : view === 'settings' ? (
           <SettingsPanel
             session={session}

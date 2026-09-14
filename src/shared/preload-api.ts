@@ -10,6 +10,18 @@ import type {
   WinrmProgress,
 } from './asset-types';
 import type { CompanyProfile, CompanyResult } from './company-types';
+import type { ReportSaveResult } from './report-types';
+import type {
+  AdhicsFindingListResult,
+  AdhicsReportResult,
+  AdhicsScriptListResult,
+  AdhicsTreeResult,
+  ControlStatus,
+  FindingStatus,
+  LeafControlOption,
+  ScriptResult,
+  ScriptRunner,
+} from './adhics-types';
 
 export type NetXScanApi = {
   ping: () => Promise<string>;
@@ -51,6 +63,43 @@ export type NetXScanApi = {
   deleteLocation: (id: number) => Promise<LocationListResult>;
   getCompany: () => Promise<CompanyResult>;
   updateCompany: (profile: CompanyProfile) => Promise<CompanyResult>;
+  getAdhicsTree: () => Promise<AdhicsTreeResult>;
+  listLeafControls: () => Promise<{ ok: true; controls: LeafControlOption[] } | { ok: false; error: string }>;
+  saveAdhicsDomain: (input: { id?: number; code: string; name: string }) => Promise<AdhicsTreeResult>;
+  deleteAdhicsDomain: (id: number) => Promise<AdhicsTreeResult>;
+  saveAdhicsFamily: (input: {
+    id?: number;
+    domainId: number;
+    code: string;
+    title: string;
+  }) => Promise<AdhicsTreeResult>;
+  deleteAdhicsFamily: (id: number) => Promise<AdhicsTreeResult>;
+  saveAdhicsControl: (input: {
+    id?: number;
+    familyId: number;
+    code: string;
+    title: string;
+    tags: string;
+    description: string;
+    status: ControlStatus;
+  }) => Promise<AdhicsTreeResult>;
+  deleteAdhicsControl: (id: number) => Promise<AdhicsTreeResult>;
+  listAssessmentScripts: () => Promise<AdhicsScriptListResult>;
+  saveAssessmentScript: (input: {
+    id?: number;
+    controlId: number;
+    name: string;
+    runner: ScriptRunner;
+    enabled: boolean;
+    timeoutSec: number;
+    body: string;
+  }) => Promise<AdhicsScriptListResult>;
+  deleteAssessmentScript: (id: number) => Promise<AdhicsScriptListResult>;
+  setScriptResult: (id: number, result: ScriptResult) => Promise<AdhicsScriptListResult>;
+  listFindings: () => Promise<AdhicsFindingListResult>;
+  updateFindingStatus: (id: number, status: FindingStatus) => Promise<AdhicsFindingListResult>;
+  getComplianceReport: () => Promise<AdhicsReportResult>;
+  saveComplianceReport: () => Promise<ReportSaveResult>;
   checkAccessibility: (ids: number[]) => Promise<AssetListResult | OkError>;
   onWinrmProgress: (listener: (event: WinrmProgress) => void) => () => void;
 };

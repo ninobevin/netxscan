@@ -56,6 +56,24 @@ const api: NetXScanApi = Object.freeze({
   deleteLocation: (id) => ipcRenderer.invoke(ipcChannels.locationDelete, { id }),
   getCompany: () => ipcRenderer.invoke(ipcChannels.companyGet),
   updateCompany: (profile) => ipcRenderer.invoke(ipcChannels.companyUpdate, profile),
+  getAdhicsTree: () => ipcRenderer.invoke(ipcChannels.adhicsTree),
+  listLeafControls: () => ipcRenderer.invoke(ipcChannels.adhicsLeafList),
+  saveAdhicsDomain: (input) => ipcRenderer.invoke(ipcChannels.adhicsSaveDomain, input),
+  deleteAdhicsDomain: (id) => ipcRenderer.invoke(ipcChannels.adhicsDeleteDomain, { id }),
+  saveAdhicsFamily: (input) => ipcRenderer.invoke(ipcChannels.adhicsSaveFamily, input),
+  deleteAdhicsFamily: (id) => ipcRenderer.invoke(ipcChannels.adhicsDeleteFamily, { id }),
+  saveAdhicsControl: (input) => ipcRenderer.invoke(ipcChannels.adhicsSaveControl, input),
+  deleteAdhicsControl: (id) => ipcRenderer.invoke(ipcChannels.adhicsDeleteControl, { id }),
+  listAssessmentScripts: () => ipcRenderer.invoke(ipcChannels.scriptList),
+  saveAssessmentScript: (input) => ipcRenderer.invoke(ipcChannels.scriptSave, input),
+  deleteAssessmentScript: (id) => ipcRenderer.invoke(ipcChannels.scriptDelete, { id }),
+  setScriptResult: (id, result) =>
+    ipcRenderer.invoke(ipcChannels.scriptSetResult, { id, result }),
+  listFindings: () => ipcRenderer.invoke(ipcChannels.findingList),
+  updateFindingStatus: (id, status) =>
+    ipcRenderer.invoke(ipcChannels.findingUpdateStatus, { id, status }),
+  getComplianceReport: () => ipcRenderer.invoke(ipcChannels.adhicsReportData),
+  saveComplianceReport: () => ipcRenderer.invoke(ipcChannels.reportSavePdf),
   checkAccessibility: (ids) =>
     ipcRenderer.invoke(ipcChannels.assetsCheckAccessibility, { ids }),
   onWinrmProgress: (listener) => {

@@ -441,6 +441,79 @@ export function complianceByDomain(
   });
 }
 
+export function unitsWithFindingsByDomain(
+  findings = DUMMY_FINDINGS,
+  controls = DUMMY_CONTROLS,
+): Array<{
+  domain: string;
+  units: Array<{
+    hostname: string;
+    ipv4: string;
+    device: string;
+    location: string;
+    findings: string;
+  }>;
+}> {
+  const active = findings.filter((finding) => finding.status !== 'closed');
+  const grouped = new Map<
+    string,
+    Map<
+      number,
+      {
+        hostname: string;
+        ipv4: string;
+        device: string;
+        location: string;
+        titles: string[];
+      }
+    >
+  >();
+
+  for (const finding of active) {
+    const control = controls.find((item) => item.id === finding.controlId);
+    const domain = control?.domain?.trim() || 'Unmapped';
+    const asset = assetById(finding.assetId);
+    if (!asset) {
+      continue;
+    }
+    if (!grouped.has(domain)) {
+      grouped.set(domain, new Map());
+    }
+    const units = grouped.get(domain);
+    if (!units) {
+      continue;
+    }
+    const existing = units.get(asset.id);
+    if (existing) {
+      if (!existing.titles.includes(finding.title)) {
+        existing.titles.push(finding.title);
+      }
+    } else {
+      units.set(asset.id, {
+        hostname: asset.hostname || asset.ipv4,
+        ipv4: asset.ipv4,
+        device: asset.device,
+        location: asset.location,
+        titles: [finding.title],
+      });
+    }
+  }
+
+  return [...grouped.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([domain, units]) => ({
+      domain,
+      units: [...units.values()].map((unit) => ({
+        hostname: unit.hostname,
+        ipv4: unit.ipv4,
+        device: unit.device,
+        location: unit.location,
+        findings: unit.titles.join('; '),
+      })),
+    }))
+    .filter((section) => section.units.length > 0);
+}
+
 export function scriptsForControl(
   controlId: string,
   scripts = DUMMY_SCRIPTS,
