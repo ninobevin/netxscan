@@ -102,6 +102,8 @@ function isOldDomain5Sample(db: AppDatabase): boolean {
 
 function clearAdhicsCatalog(db: AppDatabase): void {
   db.exec(`
+    DELETE FROM assessment_results;
+    DELETE FROM assessment_batches;
     DELETE FROM findings;
     DELETE FROM assessment_scripts;
     DELETE FROM adhics_controls;
@@ -169,6 +171,26 @@ function seedDummyScripts(db: AppDatabase): void {
       insertFinding.run(Number(row.id), script.name);
     }
   }
+  seedDummyBatch(db);
+}
+
+function seedDummyBatch(db: AppDatabase): void {
+  const existing = Number(db.prepare('SELECT COUNT(*) AS n FROM assessment_batches').get()?.n ?? 0);
+  if (existing > 0) {
+    return;
+  }
+  const started = new Date().toISOString();
+  const code = started.replace(/[-:TZ.]/g, '').slice(0, 14) + '-DEMO';
+  db.prepare('INSERT INTO assessment_batches (code, started_at) VALUES (?, ?)').run(code, started);
+  const batchId = Number(db.prepare('SELECT id FROM assessment_batches WHERE code = ?').get(code)?.id);
+  const insert = db.prepare(
+    `INSERT INTO assessment_results (batch_id, script_id, asset_id, result, created_at)
+     VALUES (?, ?, NULL, ?, ?)`,
+  );
+  const scripts = db.prepare('SELECT id, last_result FROM assessment_scripts WHERE last_result IS NOT NULL').all();
+  for (const script of scripts) {
+    insert.run(batchId, Number(script.id), String(script.last_result), started);
+  }
 }
 
 function seedAdhicsCatalog(db: AppDatabase): void {
@@ -200,7 +222,12 @@ export function runMigrations(db: AppDatabase): void {
       role TEXT NOT NULL CHECK (role IN ('administrator', 'user')),
       must_change_password INTEGER NOT NULL DEFAULT 0,
       totp_secret TEXT,
-      totp_enabled INTEGER NOT NULL DEFAULT 0
+      totp_enabled INTEGER NOT NULL DEFAULT 0,
+      full_name TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      contact TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      position TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -234,6 +261,7 @@ export function runMigrations(db: AppDatabase): void {
       address TEXT NOT NULL DEFAULT '',
       contact TEXT NOT NULL DEFAULT '',
       notes TEXT NOT NULL DEFAULT '',
+      logo_file TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL
     );
 
@@ -285,6 +313,21 @@ export function runMigrations(db: AppDatabase): void {
       severity TEXT NOT NULL CHECK (severity IN ('critical', 'high', 'medium', 'low')),
       status TEXT NOT NULL CHECK (status IN ('open', 'acknowledged', 'closed'))
     );
+
+    CREATE TABLE IF NOT EXISTS assessment_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      started_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS assessment_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_id INTEGER NOT NULL REFERENCES assessment_batches(id),
+      script_id INTEGER NOT NULL REFERENCES assessment_scripts(id),
+      asset_id INTEGER REFERENCES assets(id),
+      result TEXT NOT NULL CHECK (result IN ('pass', 'fail')),
+      created_at TEXT NOT NULL
+    );
   `);
 
   const assetColumns = columnNames(db, 'assets');
@@ -322,6 +365,11 @@ export function runMigrations(db: AppDatabase): void {
     db.exec(`ALTER TABLE categories ADD COLUMN builtin INTEGER NOT NULL DEFAULT 0;`);
   }
 
+  const companyColumns = columnNames(db, 'company_profile');
+  if (companyColumns.includes('id') && !companyColumns.includes('logo_file')) {
+    db.exec(`ALTER TABLE company_profile ADD COLUMN logo_file TEXT NOT NULL DEFAULT '';`);
+  }
+
   const userTable = db
     .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'`)
     .get() as { sql?: string } | undefined;
@@ -357,6 +405,20 @@ export function runMigrations(db: AppDatabase): void {
     db.exec('ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;');
   }
 
+  const latestUserColumns = columnNames(db, 'users');
+  const profileColumns: Array<[string, string]> = [
+    ['full_name', "ALTER TABLE users ADD COLUMN full_name TEXT NOT NULL DEFAULT '';"],
+    ['address', "ALTER TABLE users ADD COLUMN address TEXT NOT NULL DEFAULT '';"],
+    ['contact', "ALTER TABLE users ADD COLUMN contact TEXT NOT NULL DEFAULT '';"],
+    ['email', "ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT '';"],
+    ['position', "ALTER TABLE users ADD COLUMN position TEXT NOT NULL DEFAULT '';"],
+  ];
+  for (const [name, sql] of profileColumns) {
+    if (latestUserColumns.includes('id') && !latestUserColumns.includes(name)) {
+      db.exec(sql);
+    }
+  }
+
   const userCount = db.prepare('SELECT COUNT(*) AS n FROM users').get();
   if (!userCount || Number(userCount.n) === 0) {
     const insert = db.prepare(
@@ -381,6 +443,7 @@ export function runMigrations(db: AppDatabase): void {
 
   seedAdhicsCatalog(db);
   seedDummyScripts(db);
+  seedDummyBatch(db);
   db.prepare(
     `UPDATE adhics_families
         SET title = ?

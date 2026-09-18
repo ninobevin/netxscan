@@ -75,10 +75,10 @@ Session lives **in memory** in the main process. Renderer uses `getSession` (and
 
 SQLite file: `%APPDATA%\NetXScan\netxscan.sqlite` (sql.js WASM; no Visual Studio / node-gyp).
 
-IPC: `auth:login`, `auth:logout`, `auth:get-session`, `auth:change-password`, `auth:totp-begin`, `auth:totp-confirm`, `auth:forgot-password`.  
-Payloads validated in main. Failures: `{ ok: false, error }`. Success login: `{ ok: true, session }` where session is `{ username, role, setupRequired, mustChangePassword, totpEnabled }` (no hash, no TOTP secret).
+IPC: `auth:login`, `auth:logout`, `auth:get-session`, `auth:setup-status`, `auth:change-password`, `auth:totp-begin`, `auth:totp-confirm`, `auth:forgot-password`, `auth:update-profile`.  
+Payloads validated in main. Failures: `{ ok: false, error }`. Success login: `{ ok: true, session }` where session is `{ username, role, setupRequired, mustChangePassword, totpEnabled, fullName, address, contact, email, position }` (no hash, no TOTP secret). The signed-in user edits their own profile from the avatar menu (Profile, next to Log out). Reports use full name as **Prepared by** (IT incharge) and position in the signature block.
 
-First launch: only the default administrator (`admin` / `Admin123!`) can sign in until authenticator enrollment exists. After that login the app requires a new password, then a Google Authenticator QR scan and code confirmation. Feature IPC requires a completed setup (`setupRequired` false).
+First launch: only the default administrator (`admin` / `Admin123!`) can sign in until authenticator enrollment exists. The login screen shows that first-time hint only until an authenticator is enrolled. After that login the app requires a new password, then a Google Authenticator QR scan and code confirmation. Feature IPC requires a completed setup (`setupRequired` false).
 
 Forgot password on the login screen: username + authenticator code + new password. No session is created until the user signs in again.
 
@@ -129,17 +129,17 @@ IPC: `asset:list`, `asset:update` (admin, device and location), `asset:delete` (
 
 ## Module 4 — Settings (company profile and users)
 
-Single-row SQLite `company_profile`. Both roles can view. Administrator saves name, address, contact, and notes.
+Single-row SQLite `company_profile`. Both roles can view. Administrator saves name, address, contact, notes, and a PNG/JPEG **logo** (file in `%APPDATA%\NetXScan`, not in the renderer). The logo appears on sign-in, the app header, report preview, and PDF.
 
 Administrator manages local accounts: username, password, and level (`administrator` or `user`). Hashes are stored; passwords are never returned to the renderer. Cannot delete your own account or remove the last administrator.
 
-IPC: `company:get`, `company:update` (admin), `user:list`, `user:add`, `user:update`, `user:delete` (admin).
+IPC: `company:get`, `company:update` (admin), `company:branding` (name + logo, no session — login screen), `company:set-logo` (admin file picker), `company:clear-logo` (admin), `user:list`, `user:add`, `user:update`, `user:delete` (admin).
 
 ## UI
 
 - **shadcn/ui** + **lucide-react** + loading **skeletons** / short view-switch transition.
 - Keep the clinic teal palette via CSS variables (light theme).
-- After login: nav **Scanning** | **Inventory** (live device/location assignment) | Dashboard (dummy layout) | **Findings** | **ADHICS** | **Scripts** | **Report** | **Settings**. User menu (avatar) for log out.
+- After login: nav **Scanning** | **Inventory** (live device/location assignment) | Dashboard (dummy layout) | **Findings** | **ADHICS** | **Scripts** | **Report** | **Settings**. User menu (avatar): **Profile** and log out.
 - Login view if there is no session.
 
 ## Architecture rules
@@ -154,16 +154,18 @@ React  →  window.netxscan  →  preload invoke/on  →  ipcMain  →  SQLite /
 
 ## Data (SQLite)
 
-- `users` — username unique, password_hash, role (`administrator` | `user`), must_change_password, totp_secret, totp_enabled
+- `users` — username unique, password_hash, role (`administrator` | `user`), must_change_password, totp_secret, totp_enabled, full_name, address, contact, email, position
 - `categories` — name unique, icon (lucide name); six seeds with the icons above (UI label: Device)
 - `locations` — name unique (user-defined)
 - `assets` — ipv4 unique, hostname nullable, mac_address nullable, category_id nullable FK, location_id nullable FK, winrm_ok, os_version nullable, created_at, updated_at
-- `company_profile` — single row (`id = 1`): name, address, contact, notes, updated_at
+- `company_profile` — single row (`id = 1`): name, address, contact, notes, logo_file, updated_at. Logo bytes live next to the SQLite file as `company-logo.png` or `.jpg`.
 - `adhics_domains` / `adhics_families` / `adhics_controls` — ADHICS V2 catalog (domains 1–11) is seeded on first launch (`app_meta.adhics_catalog_version`). Admin can edit or delete afterward. Delete blocked if children exist.
 - `assessment_scripts` — FK to dotted control only. name, runner, body, last_result (`pass`|`fail`).
 - `findings` — one row per failed script (`script_id` unique). optional asset_id. status open/acknowledged/closed.
+- `assessment_batches` — unique batch code (`YYYYMMDDhhmmss-XXXX`). Pass/Fail reuses the latest batch for 30 minutes, then starts a new one.
+- `assessment_results` — one row per script result in a batch (pass or fail), with optional asset.
 
-IPC: `adhics:tree`, `adhics:save-domain`, `adhics:delete-domain`, `adhics:save-family`, `adhics:delete-family`, `adhics:save-control`, `adhics:delete-control`, `adhics:leaf-list`, `adhics:report-data`, `script:list`, `script:save`, `script:delete`, `script:set-result`, `finding:list`, `finding:update-status`, `report:save-pdf`.
+IPC: `adhics:tree`, `adhics:save-domain`, `adhics:delete-domain`, `adhics:save-family`, `adhics:delete-family`, `adhics:save-control`, `adhics:delete-control`, `adhics:leaf-list`, `adhics:report-data`, `script:list`, `script:save`, `script:delete`, `script:set-result`, `finding:list`, `finding:update-status`, `report:batches`, `report:preview`, `report:save-pdf`.
 
 ## Later (do not build now)
 
@@ -179,6 +181,6 @@ Renderer-only screens for layout. No new IPC, no SQLite, no NVD, no PowerShell s
 - **Findings** — live ADHICS gaps from SQLite (control ID, script title, asset, status). Fail = 1 finding per script. No CVE/CVSS.
 - **ADHICS** — live tree seeded with ADHICS V2 (Domain 1–11). Admin add/edit/delete at each level. Delete refused if children still use that id. Scripts only on the leaf; Pass/Fail on each script.
 - **Scripts** — live metadata on dotted controls. First launch seeds dummy WinRM stubs (including TLS 1.0 check on CO 12.1). Add/edit/delete. Fail writes one finding; pass removes it. Bodies are not executed.
-- **Report** — one PDF summarizing **all** domains that have findings. Dummy units (RCPT-PC-01, etc.) fill in when a finding has no inventory asset. Company header, then each domain → `CO x.y` → units table. **IT assigned** signature once at the end.
+- **Report** — type picker: **Asset List** (hostname, MAC, device, IP, location; column order; filter location/type), **Findings** (batch code from Pass/Fail, Failed or Passed, grouped by control, hostname/IP/location), **Compliance monitoring** (open / acknowledged / closed). Pass/Fail writes an `assessment_batches` code (`YYYYMMDDhhmmss-XXXX`, reused for 30 minutes). Every PDF and preview shows **Prepared by** as the signed-in user’s full name (IT incharge) plus position and a signature/date line. Save PDF matches the preview.
 
 Live later: scripts stored in main (`%APPDATA%\NetXScan\scripts\` + SQLite metadata); WinRM runs them. Do not add that until asked.

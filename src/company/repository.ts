@@ -1,5 +1,6 @@
 import { getDb } from '../db/client';
-import type { CompanyProfile } from '../shared/company-types';
+import type { CompanyBranding, CompanyProfile } from '../shared/company-types';
+import { getCompanyLogoDataUrl } from './logo';
 
 function mapProfile(row: {
   name: string;
@@ -12,6 +13,15 @@ function mapProfile(row: {
     address: row.address,
     contact: row.contact,
     notes: row.notes,
+    logoDataUrl: getCompanyLogoDataUrl(),
+  };
+}
+
+export function getCompanyBranding(): CompanyBranding {
+  const profile = getCompanyProfile();
+  return {
+    name: profile.name,
+    logoDataUrl: profile.logoDataUrl,
   };
 }
 
@@ -22,7 +32,7 @@ export function getCompanyProfile(): CompanyProfile {
     | { name: string; address: string; contact: string; notes: string }
     | undefined;
   if (!row) {
-    return { name: '', address: '', contact: '', notes: '' };
+    return { name: '', address: '', contact: '', notes: '', logoDataUrl: null };
   }
   return mapProfile(row);
 }

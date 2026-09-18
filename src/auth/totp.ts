@@ -13,6 +13,11 @@ type AuthRow = {
   must_change_password: number;
   totp_secret: string | null;
   totp_enabled: number;
+  full_name: string | null;
+  address: string | null;
+  contact: string | null;
+  email: string | null;
+  position: string | null;
 };
 
 const pendingTotp = new Map<string, string>();
@@ -24,7 +29,12 @@ function mapRole(value: string): UserRole {
 export function loadAuthRow(username: string): AuthRow | undefined {
   return getDb()
     .prepare(
-      `SELECT username, password_hash, role, must_change_password, totp_secret, totp_enabled
+      `SELECT username, password_hash, role, must_change_password, totp_secret, totp_enabled,
+              COALESCE(full_name, '') AS full_name,
+              COALESCE(address, '') AS address,
+              COALESCE(contact, '') AS contact,
+              COALESCE(email, '') AS email,
+              COALESCE(position, '') AS position
        FROM users WHERE username = ?`,
     )
     .get(username) as AuthRow | undefined;
@@ -39,6 +49,11 @@ export function publicSessionFromRow(row: AuthRow): PublicSession {
     mustChangePassword,
     totpEnabled,
     setupRequired: mustChangePassword || !totpEnabled,
+    fullName: String(row.full_name ?? ''),
+    address: String(row.address ?? ''),
+    contact: String(row.contact ?? ''),
+    email: String(row.email ?? ''),
+    position: String(row.position ?? ''),
   };
 }
 

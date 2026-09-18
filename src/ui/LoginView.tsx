@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+import { CompanyLogo } from './CompanyLogo';
+import type { CompanyBranding } from '../shared/company-types';
+
 type LoginViewProps = {
   onLoggedIn: () => void;
+  branding: CompanyBranding;
 };
 
-export function LoginView({ onLoggedIn }: LoginViewProps) {
+export function LoginView({ onLoggedIn, branding }: LoginViewProps) {
   const [mode, setMode] = useState<'login' | 'forgot'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +22,13 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [firstTimeSetup, setFirstTimeSetup] = useState(false);
+
+  useEffect(() => {
+    void window.netxscan.getSetupStatus().then((status) => {
+      setFirstTimeSetup(status.firstTimeSetup);
+    });
+  }, []);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -65,17 +76,28 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
         className="w-full max-w-sm space-y-4 rounded-2xl border border-health-border bg-health-surface p-8 shadow-sm"
       >
         <div>
+          <CompanyLogo
+            src={branding.logoDataUrl}
+            className="mb-4 h-16 w-16 rounded-md border border-health-border bg-health-canvas object-contain p-1"
+          />
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-health-accent">
             NetXScan
           </p>
+          {branding.name.trim() ? (
+            <p className="mt-1 text-sm text-health-subtle">{branding.name}</p>
+          ) : null}
           <h1 className="mt-2 text-2xl font-semibold">
             {mode === 'login' ? 'Sign in' : 'Forgot password'}
           </h1>
-          <p className="mt-1 text-sm text-health-subtle">
-            {mode === 'login'
-              ? 'First-time setup requires the default administrator account.'
-              : 'Enter your username, Google Authenticator code, and a new password.'}
-          </p>
+          {mode === 'forgot' ? (
+            <p className="mt-1 text-sm text-health-subtle">
+              Enter your username, Google Authenticator code, and a new password.
+            </p>
+          ) : firstTimeSetup ? (
+            <p className="mt-1 text-sm text-health-subtle">
+              First-time setup requires the default administrator account.
+            </p>
+          ) : null}
         </div>
         <div className="space-y-2">
           <Label htmlFor="username">Username</Label>

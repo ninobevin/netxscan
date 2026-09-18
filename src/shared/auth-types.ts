@@ -1,12 +1,20 @@
 export type UserRole = 'administrator' | 'user';
 
+export type UserProfile = {
+  fullName: string;
+  address: string;
+  contact: string;
+  email: string;
+  position: string;
+};
+
 export type PublicSession = {
   username: string;
   role: UserRole;
   setupRequired: boolean;
   mustChangePassword: boolean;
   totpEnabled: boolean;
-};
+} & UserProfile;
 
 export type AppUser = {
   id: number;

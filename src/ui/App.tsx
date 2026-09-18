@@ -12,7 +12,9 @@ import { ScanningPanel } from './ScanningPanel';
 import { ScriptsPanel } from './ScriptsPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { UserMenu } from './UserMenu';
+import { CompanyLogo } from './CompanyLogo';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { CompanyBranding } from '../shared/company-types';
 
 type NavId =
   | 'scanning'
@@ -48,18 +50,31 @@ export function App() {
   const [assetId, setAssetId] = useState<number | null>(null);
   const [detailOrigin, setDetailOrigin] = useState<NavId>('dashboard');
   const [scriptControlId, setScriptControlId] = useState<string | null>(null);
+  const [branding, setBranding] = useState<CompanyBranding>({ name: '', logoDataUrl: null });
   const loadTimer = useRef<number | null>(null);
+
+  const refreshBranding = async () => {
+    const result = await window.netxscan.getCompanyBranding();
+    if (result.ok) {
+      setBranding(result.branding);
+    }
+  };
 
   const refreshSession = async () => {
     const next = await window.netxscan.getSession();
     setSession(next);
     setReady(true);
+    await refreshBranding();
   };
 
   useEffect(() => {
     void refreshSession();
     const timer = window.setInterval(() => {
-      void refreshSession();
+      void (async () => {
+        const next = await window.netxscan.getSession();
+        setSession(next);
+        setReady(true);
+      })();
     }, 10000);
     return () => {
       window.clearInterval(timer);
@@ -117,6 +132,7 @@ export function App() {
   if (!session) {
     return (
       <LoginView
+        branding={branding}
         onLoggedIn={() => {
           void refreshSession();
         }}
@@ -128,6 +144,7 @@ export function App() {
     return (
       <FirstLoginSetup
         session={session}
+        branding={branding}
         onDone={() => {
           void refreshSession();
         }}
@@ -139,15 +156,26 @@ export function App() {
     <div className="min-h-screen bg-health-canvas text-health-text">
       <header className="border-b border-health-border bg-health-surface">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-8 py-5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-health-accent">
-              NetXScan
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold">Network assets</h1>
+          <div className="flex items-center gap-3">
+            <CompanyLogo
+              src={branding.logoDataUrl}
+              className="h-12 w-12 rounded-md border border-health-border bg-health-canvas object-contain p-1"
+            />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-health-accent">
+                NetXScan
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold">
+                {branding.name.trim() || 'Network assets'}
+              </h1>
+            </div>
           </div>
           <UserMenu
             session={session}
             onLoggedOut={() => {
+              void refreshSession();
+            }}
+            onSessionRefresh={() => {
               void refreshSession();
             }}
           />
@@ -207,6 +235,9 @@ export function App() {
             session={session}
             onSessionRefresh={() => {
               void refreshSession();
+            }}
+            onCompanyChange={() => {
+              void refreshBranding();
             }}
           />
         ) : (

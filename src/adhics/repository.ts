@@ -368,8 +368,49 @@ export function saveScript(input: {
 export function deleteScript(id: number): AdhicsScript[] {
   const db = getDb();
   db.prepare('DELETE FROM findings WHERE script_id = ?').run(id);
+  db.prepare('DELETE FROM assessment_results WHERE script_id = ?').run(id);
   db.prepare('DELETE FROM assessment_scripts WHERE id = ?').run(id);
   return listScripts();
+}
+
+const BATCH_WINDOW_MS = 30 * 60 * 1000;
+
+function makeBatchCode(at = new Date()): string {
+  const stamp = at.toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+  const rand = Math.floor(Math.random() * 0xffff)
+    .toString(16)
+    .padStart(4, '0')
+    .toUpperCase();
+  return `${stamp}-${rand}`;
+}
+
+function currentOrNewBatch(): { id: number; code: string } {
+  const db = getDb();
+  const latest = db
+    .prepare('SELECT id, code, started_at FROM assessment_batches ORDER BY id DESC LIMIT 1')
+    .get();
+  if (latest) {
+    const started = Date.parse(str(latest.started_at));
+    if (Number.isFinite(started) && Date.now() - started < BATCH_WINDOW_MS) {
+      return { id: num(latest.id), code: str(latest.code) };
+    }
+  }
+  const code = makeBatchCode();
+  const now = new Date().toISOString();
+  db.prepare('INSERT INTO assessment_batches (code, started_at) VALUES (?, ?)').run(code, now);
+  const row = db.prepare('SELECT id FROM assessment_batches WHERE code = ?').get(code);
+  return { id: num(row?.id), code };
+}
+
+export function listAssessmentBatches(): Array<{ id: number; code: string; startedAt: string }> {
+  return getDb()
+    .prepare('SELECT id, code, started_at FROM assessment_batches ORDER BY started_at DESC, id DESC')
+    .all()
+    .map((row) => ({
+      id: num(row.id),
+      code: str(row.code),
+      startedAt: str(row.started_at),
+    }));
 }
 
 export function setScriptResult(id: number, result: ScriptResult): AdhicsScript[] {
@@ -386,11 +427,16 @@ export function setScriptResult(id: number, result: ScriptResult): AdhicsScript[
     throw new Error('Script not found.');
   }
   db.prepare('UPDATE assessment_scripts SET last_result = ? WHERE id = ?').run(result, id);
+  const batch = currentOrNewBatch();
+  const assetId = firstAssetId();
+  db.prepare(
+    `INSERT INTO assessment_results (batch_id, script_id, asset_id, result, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(batch.id, id, assetId, result, new Date().toISOString());
   if (result === 'pass') {
     db.prepare('DELETE FROM findings WHERE script_id = ?').run(id);
   } else {
     const existing = db.prepare('SELECT id FROM findings WHERE script_id = ?').get(id);
-    const assetId = firstAssetId();
     if (existing) {
       db.prepare(
         `UPDATE findings SET title = ?, status = 'open', asset_id = COALESCE(asset_id, ?)

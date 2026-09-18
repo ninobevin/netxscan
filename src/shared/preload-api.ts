@@ -1,4 +1,11 @@
-import type { LoginResult, PublicSession, TotpBeginResult, UserListResult, UserRole } from './auth-types';
+import type {
+  LoginResult,
+  PublicSession,
+  TotpBeginResult,
+  UserListResult,
+  UserProfile,
+  UserRole,
+} from './auth-types';
 import type {
   AddToAssetsResult,
   AssetListResult,
@@ -9,11 +16,15 @@ import type {
   ScanRunResult,
   WinrmProgress,
 } from './asset-types';
-import type { CompanyProfile, CompanyResult } from './company-types';
-import type { ReportSaveResult } from './report-types';
+import type {
+  CompanyBrandingResult,
+  CompanyLogoResult,
+  CompanyProfile,
+  CompanyResult,
+} from './company-types';
+import type { ReportPreviewResult, ReportQuery, ReportSaveResult, BatchListResult } from './report-types';
 import type {
   AdhicsFindingListResult,
-  AdhicsReportResult,
   AdhicsScriptListResult,
   AdhicsTreeResult,
   ControlStatus,
@@ -29,6 +40,8 @@ export type NetXScanApi = {
   login: (username: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
   getSession: () => Promise<PublicSession | null>;
+  getSetupStatus: () => Promise<{ firstTimeSetup: boolean }>;
+  updateProfile: (profile: UserProfile) => Promise<LoginResult>;
   changePassword: (currentPassword: string, nextPassword: string) => Promise<LoginResult>;
   beginTotpSetup: () => Promise<TotpBeginResult>;
   confirmTotpSetup: (code: string) => Promise<LoginResult>;
@@ -62,7 +75,10 @@ export type NetXScanApi = {
   updateLocation: (id: number, name: string) => Promise<LocationListResult>;
   deleteLocation: (id: number) => Promise<LocationListResult>;
   getCompany: () => Promise<CompanyResult>;
+  getCompanyBranding: () => Promise<CompanyBrandingResult>;
   updateCompany: (profile: CompanyProfile) => Promise<CompanyResult>;
+  chooseCompanyLogo: () => Promise<CompanyLogoResult>;
+  clearCompanyLogo: () => Promise<CompanyResult>;
   getAdhicsTree: () => Promise<AdhicsTreeResult>;
   listLeafControls: () => Promise<{ ok: true; controls: LeafControlOption[] } | { ok: false; error: string }>;
   saveAdhicsDomain: (input: { id?: number; code: string; name: string }) => Promise<AdhicsTreeResult>;
@@ -98,8 +114,9 @@ export type NetXScanApi = {
   setScriptResult: (id: number, result: ScriptResult) => Promise<AdhicsScriptListResult>;
   listFindings: () => Promise<AdhicsFindingListResult>;
   updateFindingStatus: (id: number, status: FindingStatus) => Promise<AdhicsFindingListResult>;
-  getComplianceReport: () => Promise<AdhicsReportResult>;
-  saveComplianceReport: () => Promise<ReportSaveResult>;
+  listReportBatches: () => Promise<BatchListResult>;
+  getReportPreview: (query: ReportQuery) => Promise<ReportPreviewResult>;
+  saveComplianceReport: (query: ReportQuery) => Promise<ReportSaveResult>;
   checkAccessibility: (ids: number[]) => Promise<AssetListResult | OkError>;
   onWinrmProgress: (listener: (event: WinrmProgress) => void) => () => void;
 };

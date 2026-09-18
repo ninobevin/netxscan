@@ -11,6 +11,8 @@ const api: NetXScanApi = Object.freeze({
     ipcRenderer.invoke(ipcChannels.login, { username, password }),
   logout: () => ipcRenderer.invoke(ipcChannels.logout),
   getSession: () => ipcRenderer.invoke(ipcChannels.getSession),
+  getSetupStatus: () => ipcRenderer.invoke(ipcChannels.setupStatus),
+  updateProfile: (profile) => ipcRenderer.invoke(ipcChannels.profileUpdate, profile),
   changePassword: (currentPassword, nextPassword) =>
     ipcRenderer.invoke(ipcChannels.changePassword, { currentPassword, nextPassword }),
   beginTotpSetup: () => ipcRenderer.invoke(ipcChannels.totpBegin),
@@ -55,7 +57,10 @@ const api: NetXScanApi = Object.freeze({
     ipcRenderer.invoke(ipcChannels.locationUpdate, { id, name }),
   deleteLocation: (id) => ipcRenderer.invoke(ipcChannels.locationDelete, { id }),
   getCompany: () => ipcRenderer.invoke(ipcChannels.companyGet),
+  getCompanyBranding: () => ipcRenderer.invoke(ipcChannels.companyBranding),
   updateCompany: (profile) => ipcRenderer.invoke(ipcChannels.companyUpdate, profile),
+  chooseCompanyLogo: () => ipcRenderer.invoke(ipcChannels.companySetLogo),
+  clearCompanyLogo: () => ipcRenderer.invoke(ipcChannels.companyClearLogo),
   getAdhicsTree: () => ipcRenderer.invoke(ipcChannels.adhicsTree),
   listLeafControls: () => ipcRenderer.invoke(ipcChannels.adhicsLeafList),
   saveAdhicsDomain: (input) => ipcRenderer.invoke(ipcChannels.adhicsSaveDomain, input),
@@ -72,8 +77,9 @@ const api: NetXScanApi = Object.freeze({
   listFindings: () => ipcRenderer.invoke(ipcChannels.findingList),
   updateFindingStatus: (id, status) =>
     ipcRenderer.invoke(ipcChannels.findingUpdateStatus, { id, status }),
-  getComplianceReport: () => ipcRenderer.invoke(ipcChannels.adhicsReportData),
-  saveComplianceReport: () => ipcRenderer.invoke(ipcChannels.reportSavePdf),
+  listReportBatches: () => ipcRenderer.invoke(ipcChannels.reportBatches),
+  getReportPreview: (query) => ipcRenderer.invoke(ipcChannels.reportPreview, query),
+  saveComplianceReport: (query) => ipcRenderer.invoke(ipcChannels.reportSavePdf, query),
   checkAccessibility: (ids) =>
     ipcRenderer.invoke(ipcChannels.assetsCheckAccessibility, { ids }),
   onWinrmProgress: (listener) => {

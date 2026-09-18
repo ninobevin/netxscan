@@ -4,13 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { PublicSession } from '../shared/auth-types';
+import type { CompanyBranding } from '../shared/company-types';
+import { CompanyLogo } from './CompanyLogo';
 
 type FirstLoginSetupProps = {
   session: PublicSession;
+  branding: CompanyBranding;
   onDone: () => void;
 };
 
-export function FirstLoginSetup({ session, onDone }: FirstLoginSetupProps) {
+export function FirstLoginSetup({ session, branding, onDone }: FirstLoginSetupProps) {
   const [step, setStep] = useState<'password' | 'totp'>(
     session.mustChangePassword ? 'password' : 'totp',
   );
@@ -79,6 +82,10 @@ export function FirstLoginSetup({ session, onDone }: FirstLoginSetupProps) {
     <div className="flex min-h-screen items-center justify-center bg-health-canvas p-6">
       <div className="w-full max-w-md space-y-4 rounded-2xl border border-health-border bg-health-surface p-8 shadow-sm">
         <div>
+          <CompanyLogo
+            src={branding.logoDataUrl}
+            className="mb-4 h-16 w-16 rounded-md border border-health-border bg-health-canvas object-contain p-1"
+          />
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-health-accent">
             NetXScan
           </p>

@@ -9,8 +9,9 @@ import {
   clearPendingTotp,
   confirmTotpSetup,
   resetPasswordWithTotp,
+  anyAuthenticatorEnrolled,
 } from './totp';
-import { addUser, deleteUser, listUsers, updateUser } from './users';
+import { addUser, deleteUser, listUsers, updateOwnProfile, updateUser } from './users';
 
 function asObject(payload: unknown): Record<string, unknown> | null {
   if (!payload || typeof payload !== 'object') {
@@ -32,6 +33,10 @@ export function registerAuthIpc(): void {
 
   ipcMain.handle(ipcChannels.getSession, () => {
     return getActiveSession();
+  });
+
+  ipcMain.handle(ipcChannels.setupStatus, () => {
+    return { firstTimeSetup: !anyAuthenticatorEnrolled() };
   });
 
   ipcMain.handle(ipcChannels.changePassword, async (_event, payload: unknown) => {
@@ -94,6 +99,18 @@ export function registerAuthIpc(): void {
       return { ok: false, error: result.error };
     }
     return { ok: true };
+  });
+
+  ipcMain.handle(ipcChannels.profileUpdate, (_event, payload: unknown) => {
+    try {
+      const result = updateOwnProfile(payload);
+      if ('error' in result) {
+        return { ok: false, error: result.error };
+      }
+      return { ok: true, session: result };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
   });
 
   ipcMain.handle(ipcChannels.userList, () => {

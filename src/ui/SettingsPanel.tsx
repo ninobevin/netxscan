@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { showSaveSuccess } from './show-save-success';
+import { CompanyLogo } from './CompanyLogo';
 import { UserManagementSection } from './UserManagementSection';
 import type { PublicSession } from '../shared/auth-types';
 import type { CompanyProfile } from '../shared/company-types';
@@ -12,14 +13,16 @@ const EMPTY: CompanyProfile = {
   address: '',
   contact: '',
   notes: '',
+  logoDataUrl: null,
 };
 
 type SettingsPanelProps = {
   session: PublicSession;
   onSessionRefresh: () => void;
+  onCompanyChange?: () => void;
 };
 
-export function SettingsPanel({ session, onSessionRefresh }: SettingsPanelProps) {
+export function SettingsPanel({ session, onSessionRefresh, onCompanyChange }: SettingsPanelProps) {
   const isAdmin = session.role === 'administrator';
   const [profile, setProfile] = useState<CompanyProfile>(EMPTY);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,7 +49,39 @@ export function SettingsPanel({ session, onSessionRefresh }: SettingsPanelProps)
       return;
     }
     setProfile(result.profile);
+    onCompanyChange?.();
     showSaveSuccess();
+  };
+
+  const chooseLogo = async () => {
+    setBusy(true);
+    setMessage(null);
+    const result = await window.netxscan.chooseCompanyLogo();
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(result.error);
+      return;
+    }
+    if (result.cancelled) {
+      return;
+    }
+    setProfile(result.profile);
+    onCompanyChange?.();
+    showSaveSuccess('Logo saved.');
+  };
+
+  const removeLogo = async () => {
+    setBusy(true);
+    setMessage(null);
+    const result = await window.netxscan.clearCompanyLogo();
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(result.error);
+      return;
+    }
+    setProfile(result.profile);
+    onCompanyChange?.();
+    showSaveSuccess('Logo removed.');
   };
 
   return (
@@ -57,6 +92,31 @@ export function SettingsPanel({ session, onSessionRefresh }: SettingsPanelProps)
       </div>
       <div className="max-w-xl space-y-4 rounded-xl border bg-card p-6">
         <h3 className="text-base font-semibold">Company profile</h3>
+        <div className="space-y-2">
+          <Label>Logo</Label>
+          <div className="flex flex-wrap items-center gap-4">
+            {profile.logoDataUrl ? (
+              <CompanyLogo src={profile.logoDataUrl} className="h-16 w-16 rounded-md border bg-background object-contain p-1" />
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-md border bg-muted text-xs text-muted-foreground">
+                None
+              </div>
+            )}
+            {isAdmin ? (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" disabled={busy} onClick={() => void chooseLogo()}>
+                  Choose logo
+                </Button>
+                {profile.logoDataUrl ? (
+                  <Button variant="ghost" disabled={busy} onClick={() => void removeLogo()}>
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground">PNG or JPEG, up to 2 MB. Shown on login, the header, and reports.</p>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="company-name">Clinic name</Label>
           <Input

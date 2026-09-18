@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs';
 import { getDb } from '../db/client';
-import type { AppUser, UserRole } from '../shared/auth-types';
+import type { AppUser, PublicSession, UserRole } from '../shared/auth-types';
 import { parsePassword } from './password';
-import { getActiveSession, setSession } from './session';
+import { getActiveSession, requireAppSession, setSession } from './session';
 import { refreshSessionFor } from './totp';
 
 function mapRole(value: unknown): UserRole {
@@ -72,6 +72,11 @@ function syncSession(previousUsername: string, next: AppUser): void {
       setupRequired: true,
       mustChangePassword: false,
       totpEnabled: false,
+      fullName: active.fullName,
+      address: active.address,
+      contact: active.contact,
+      email: active.email,
+      position: active.position,
     });
   }
 }
@@ -168,4 +173,60 @@ export function deleteUser(id: number, actorUsername: string): AppUser[] | { err
   }
   getDb().prepare('DELETE FROM users WHERE id = ?').run(id);
   return listUsers();
+}
+
+function parseProfileText(
+  value: unknown,
+  label: string,
+  max: number,
+  required = false,
+): string | { error: string } {
+  const text = String(value ?? '').trim();
+  if (required && text.length < 1) {
+    return { error: `${label} is required.` };
+  }
+  if (text.length > max) {
+    return { error: `${label} must be ${max} characters or fewer.` };
+  }
+  return text;
+}
+
+export function updateOwnProfile(input: unknown): PublicSession | { error: string } {
+  const active = requireAppSession();
+  const body = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const fullName = parseProfileText(body.fullName, 'Full name', 120, true);
+  if (typeof fullName !== 'string') {
+    return fullName;
+  }
+  const address = parseProfileText(body.address, 'Address', 200);
+  if (typeof address !== 'string') {
+    return address;
+  }
+  const contact = parseProfileText(body.contact, 'Contact', 80);
+  if (typeof contact !== 'string') {
+    return contact;
+  }
+  const email = parseProfileText(body.email, 'Email', 120);
+  if (typeof email !== 'string') {
+    return email;
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: 'Enter a valid email address.' };
+  }
+  const position = parseProfileText(body.position, 'Position', 80, true);
+  if (typeof position !== 'string') {
+    return position;
+  }
+  getDb()
+    .prepare(
+      `UPDATE users
+          SET full_name = ?, address = ?, contact = ?, email = ?, position = ?
+        WHERE username = ?`,
+    )
+    .run(fullName, address, contact, email, position, active.username);
+  const session = refreshSessionFor(active.username);
+  if (!session) {
+    return { error: 'Could not update profile.' };
+  }
+  return session;
 }

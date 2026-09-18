@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>NetXScan</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #042f2e;
+        color: #ccfbf1;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+      .wrap {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      img {
+        width: 96px;
+        height: 96px;
+        border-radius: 22px;
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      p {
+        margin: 18px 0 0;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.28em;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(0.94);
+          opacity: 0.72;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <img src="icon.png" alt="NetXScan" />
+      <p>NETXSCAN</p>
+    </div>
+  </body>
+</html>
