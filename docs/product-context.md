@@ -60,16 +60,17 @@ Bootstrap users (password hashes in SQLite, never plaintext in git):
 
 Session lives **in memory** in the main process. Renderer uses `getSession` (and a light poll). No session cookie in Chromium storage as the source of truth.
 
-## Asset properties (WinRM, OS, MAC)
+## Asset properties (WinRM, OS, MAC, hostname)
 
 - **WinRM** (`winrm_ok`): remoting answers.
 - **OS version** (`os_version`): when WinRM works.
 - **MAC** (`mac_address`): from WinRM when remoting works; if not, from **nmap** on that IP (nmap must be on PATH; MAC usually only on the same LAN). Keep last known values if both fail.
+- **Hostname** (`hostname`): from scan when `ping -a` or nmap reports a name. Check accessibility only: if WinRM is active and the row has no hostname (or the stored value is the IPv4), look up the computer **Name** in AD (`Get-ADComputer` + DNS IPs containing that IPv4) and save it. Then `Invoke-Command -ComputerName <that Name> -Credential` with a `PSCredential` from the Windows username/password collected for that run. Do not overwrite an existing hostname. Scan does not query AD.
 
 **Scan vs Asset Manager**
 
 - **Scan:** Quick = `ping -a`; Deep = nmap host discovery (`-sn`) for ICMP-silent hosts. New Asset Manager rows: `winrm_ok` false, OS/MAC/location/device null.
-- **Asset Manager (admin) Check accessibility:** probe WinRM (may start the service); save OS and MAC if remoting works. If not, run nmap for MAC only.
+- **Asset Manager (admin) Check accessibility:** probe WinRM (may start the service). If WinRM is down, nmap for MAC only. If WinRM is up, save OS/MAC via `Invoke-Command` to a computer **name** (stored hostname, or AD Name when the row had none). Never `Invoke-Command` by IPv4.
 
 ## Module 1 — Authentication
 
@@ -114,18 +115,19 @@ Columns: select, IP, hostname, MAC, device (icon + label), location, OS version,
 
 ### Check accessibility (admin, selected assets)
 
-IPC payload is an **array of asset ids**. Empty selection does nothing.
+IPC payload is selected asset **ids** plus Windows **username** and **password**. Empty selection does nothing. A dialog collects credentials once per run (username prefilled as `DOMAIN\user` from this PC). Main keeps them in memory for that handler only and drops them in `finally`. They are not written to SQLite, files, or Chromium storage. The app login password is not used for WinRM.
 
 For each selected asset:
 
-1. Probe WinRM; if down, try to start the service; probe again.
-2. If remoting works: set `winrm_ok`, save OS and MAC from the remote host.
-3. If remoting fails: set `winrm_ok` false; keep last OS; run **nmap** (`-sn`) on the IPv4 and save MAC if reported (same LAN typical). nmap must be on PATH.
-4. If nmap has no MAC, keep last `mac_address`.
+1. Probe WinRM (`Test-WSMan` on the IPv4); if down, try to start the service; probe again.
+2. If WinRM is down: set `winrm_ok` false; keep last OS; run **nmap** (`-sn`) on the IPv4 and save MAC if reported. Do **not** query AD.
+3. If WinRM is up and the row already has a hostname that is not the IPv4: `Invoke-Command -ComputerName <that name> -Credential` a `PSCredential` built from the run’s Windows username and password (piped to PowerShell on stdin, not on the command line) for OS, MAC, and `hostname`. Do not overwrite the stored hostname.
+4. If WinRM is up and hostname is missing: `Get-ADComputer -Filter * -Properties DNSHostName`, resolve each `DNSHostName`, keep the computer whose DNS IPs contain this IPv4. Save **Name**. Then the same `Invoke-Command -ComputerName <Name> -Credential`. One AD enumeration per Check accessibility run, only if at least one selected asset has WinRM up and a missing name. RSAT ActiveDirectory required. If no match, hostname stays empty; do **not** `Invoke-Command` by IP (TrustedHosts).
+5. If nmap has no MAC, keep last `mac_address`.
 
 Progress: `assets:winrm-progress`.
 
-IPC: `asset:list`, `asset:update` (admin, device and location), `asset:delete` (admin), `category:list`, `category:add`, `category:update`, `category:delete`, `location:list`, `location:add`, `location:update`, `location:delete` (admin), `assets:check-accessibility`, `assets:winrm-progress`.
+IPC: `asset:list`, `asset:update` (admin, device and location), `asset:delete` (admin), `category:list`, `category:add`, `category:update`, `category:delete`, `location:list`, `location:add`, `location:update`, `location:delete` (admin), `assets:check-accessibility`, `assets:winrm-progress`, `assets:windows-identity`.
 
 ## Module 4 — Settings (company profile and users)
 

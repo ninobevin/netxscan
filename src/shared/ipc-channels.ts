@@ -53,6 +53,7 @@ export const ipcChannels = {
   findingUpdateStatus: 'finding:update-status',
   assetsCheckAccessibility: 'assets:check-accessibility',
   assetsWinrmProgress: 'assets:winrm-progress',
+  assetsWindowsIdentity: 'assets:windows-identity',
 } as const;
 
 export type IpcChannel = (typeof ipcChannels)[keyof typeof ipcChannels];

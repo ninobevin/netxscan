@@ -8,6 +8,15 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -56,6 +65,9 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [manageDevicesOpen, setManageDevicesOpen] = useState(false);
   const [manageLocationsOpen, setManageLocationsOpen] = useState(false);
+  const [credOpen, setCredOpen] = useState(false);
+  const [winUsername, setWinUsername] = useState('');
+  const [winPassword, setWinPassword] = useState('');
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
@@ -96,6 +108,7 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
                   winrmOk: event.status === 'ok',
                   osVersion: event.osVersion ?? asset.osVersion,
                   macAddress: event.macAddress ?? asset.macAddress,
+                  hostname: event.hostname ?? asset.hostname,
                 }
               : asset,
           ),
@@ -180,14 +193,30 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
     }
   };
 
-  const onCheck = async () => {
+  const openCheck = async () => {
     if (selected.size === 0) {
       setMessage('Select at least one asset.');
       return;
     }
+    const identity = await window.netxscan.getWindowsIdentity();
+    setWinUsername(identity.ok ? identity.username : '');
+    setWinPassword('');
+    setMessage(null);
+    setCredOpen(true);
+  };
+
+  const onCheck = async () => {
+    const username = winUsername.trim();
+    const password = winPassword;
+    if (!username || !password) {
+      setMessage('Windows username and password are required.');
+      return;
+    }
+    setCredOpen(false);
+    setWinPassword('');
     setBusy(true);
     setMessage(null);
-    const result = await window.netxscan.checkAccessibility([...selected]);
+    const result = await window.netxscan.checkAccessibility([...selected], username, password);
     setBusy(false);
     if ('assets' in result && result.ok) {
       setAssets(result.assets);
@@ -290,7 +319,7 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
         </Button>
         {isAdmin ? (
           <>
-            <Button disabled={busy || selected.size === 0} onClick={() => void onCheck()}>
+            <Button disabled={busy || selected.size === 0} onClick={() => void openCheck()}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Check accessibility
             </Button>
@@ -513,6 +542,60 @@ export function AssetManagerPanel({ session }: AssetManagerPanelProps) {
           </Button>
         </div>
       </div>
+      <Dialog
+        open={credOpen}
+        onOpenChange={(open) => {
+          setCredOpen(open);
+          if (!open) {
+            setWinPassword('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Windows credentials</DialogTitle>
+            <DialogDescription>
+              Used only for this Check accessibility run. The password stays in memory and is not
+              saved.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="winrm-user">Username</Label>
+              <Input
+                id="winrm-user"
+                value={winUsername}
+                onChange={(event) => setWinUsername(event.target.value)}
+                autoComplete="username"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="winrm-password">Password</Label>
+              <Input
+                id="winrm-password"
+                type="password"
+                value={winPassword}
+                onChange={(event) => setWinPassword(event.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setWinPassword('');
+                setCredOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button disabled={busy} onClick={() => void onCheck()}>
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ManageDevicesDialog
         open={manageDevicesOpen}
         onOpenChange={setManageDevicesOpen}

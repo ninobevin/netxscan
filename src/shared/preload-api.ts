@@ -117,7 +117,12 @@ export type NetXScanApi = {
   listReportBatches: () => Promise<BatchListResult>;
   getReportPreview: (query: ReportQuery) => Promise<ReportPreviewResult>;
   saveComplianceReport: (query: ReportQuery) => Promise<ReportSaveResult>;
-  checkAccessibility: (ids: number[]) => Promise<AssetListResult | OkError>;
+  checkAccessibility: (
+    ids: number[],
+    username: string,
+    password: string,
+  ) => Promise<AssetListResult | OkError>;
+  getWindowsIdentity: () => Promise<{ ok: true; username: string } | { ok: false; error: string }>;
   onWinrmProgress: (listener: (event: WinrmProgress) => void) => () => void;
 };
 

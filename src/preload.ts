@@ -80,8 +80,9 @@ const api: NetXScanApi = Object.freeze({
   listReportBatches: () => ipcRenderer.invoke(ipcChannels.reportBatches),
   getReportPreview: (query) => ipcRenderer.invoke(ipcChannels.reportPreview, query),
   saveComplianceReport: (query) => ipcRenderer.invoke(ipcChannels.reportSavePdf, query),
-  checkAccessibility: (ids) =>
-    ipcRenderer.invoke(ipcChannels.assetsCheckAccessibility, { ids }),
+  checkAccessibility: (ids, username, password) =>
+    ipcRenderer.invoke(ipcChannels.assetsCheckAccessibility, { ids, username, password }),
+  getWindowsIdentity: () => ipcRenderer.invoke(ipcChannels.assetsWindowsIdentity),
   onWinrmProgress: (listener) => {
     const wrapped = (_event: unknown, progress: WinrmProgress) => {
       listener(progress);

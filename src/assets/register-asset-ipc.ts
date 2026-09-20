@@ -18,7 +18,8 @@ import {
   updateWinrm,
 } from './repository';
 import { errorMessage } from '../ipc/error-message';
-import { checkAccessibility } from '../scan/winrm';
+import { invokeWinrmDetails, isIpv4Literal, testWinrm, windowsIdentity } from '../scan/winrm';
+import { lookupAdComputerNames } from '../scan/ad-computer';
 import { lookupMacWithNmap } from '../scan/nmap-mac';
 
 let checking = false;
@@ -244,6 +245,15 @@ export function registerAssetIpc(): void {
     }
   });
 
+  ipcMain.handle(ipcChannels.assetsWindowsIdentity, () => {
+    try {
+      requireAppSession();
+      return { ok: true, username: windowsIdentity() };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
+  });
+
   ipcMain.handle(ipcChannels.assetsCheckAccessibility, async (event, payload: unknown) => {
     try {
       requireRole('administrator');
@@ -262,9 +272,23 @@ export function registerAssetIpc(): void {
     if (ids.length === 0) {
       return { ok: false, error: 'Select at least one asset.' };
     }
+    let username = String((payload as { username?: unknown }).username ?? '').trim();
+    let password = String((payload as { password?: unknown }).password ?? '');
+    if (!username || !password) {
+      return { ok: false, error: 'Windows username and password are required.' };
+    }
 
     checking = true;
+    let credential: { username: string; password: string } | null = null;
     try {
+      const pending: Array<{
+        id: number;
+        ipv4: string;
+        storedHostname: string;
+        needHostname: boolean;
+        winrmOk: boolean;
+      }> = [];
+
       for (const id of ids) {
         const asset = getAssetById(id);
         if (!asset) {
@@ -275,25 +299,67 @@ export function registerAssetIpc(): void {
           ipv4: asset.ipv4,
           status: 'checking',
         });
-        const host = asset.hostname ?? asset.ipv4;
-        const result = await checkAccessibility(host, asset.ipv4, true);
-        let macAddress = result.macAddress;
-        if (!result.ok) {
-          macAddress = (await lookupMacWithNmap(asset.ipv4)) ?? macAddress;
-        }
-        updateWinrm(asset.id, result.ok, result.osVersion, macAddress);
-        event.sender.send(ipcChannels.assetsWinrmProgress, {
-          assetId: asset.id,
+        const storedHostname = asset.hostname?.trim() || '';
+        const needHostname =
+          !storedHostname || storedHostname.toLowerCase() === asset.ipv4.toLowerCase();
+        const winrmOk = await testWinrm(asset.ipv4, true);
+        pending.push({
+          id: asset.id,
           ipv4: asset.ipv4,
-          status: result.ok ? 'ok' : 'failed',
-          osVersion: result.osVersion,
+          storedHostname,
+          needHostname,
+          winrmOk,
+        });
+      }
+
+      const needAd = pending
+        .filter((row) => row.winrmOk && row.needHostname)
+        .map((row) => row.ipv4);
+      const adNames = needAd.length > 0 ? await lookupAdComputerNames(needAd) : new Map<string, string>();
+      credential = { username, password };
+
+      for (const row of pending) {
+        let osVersion: string | null = null;
+        let macAddress: string | null = null;
+        let hostname: string | null = null;
+
+        if (!row.winrmOk) {
+          macAddress = await lookupMacWithNmap(row.ipv4);
+        } else {
+          const storedName =
+            !row.needHostname && !isIpv4Literal(row.storedHostname) ? row.storedHostname : null;
+          const computerName = storedName ?? adNames.get(row.ipv4) ?? null;
+          if (computerName && credential) {
+            const details = await invokeWinrmDetails(computerName, row.ipv4, credential);
+            osVersion = details.osVersion;
+            macAddress = details.macAddress;
+            if (row.needHostname) {
+              hostname = details.hostname || computerName;
+            }
+          }
+        }
+
+        updateWinrm(row.id, row.winrmOk, osVersion, macAddress, hostname);
+        event.sender.send(ipcChannels.assetsWinrmProgress, {
+          assetId: row.id,
+          ipv4: row.ipv4,
+          status: row.winrmOk ? 'ok' : 'failed',
+          osVersion,
           macAddress,
+          hostname,
         });
       }
       return { ok: true, assets: listAssets() };
     } catch (error) {
       return { ok: false, error: errorMessage(error) };
     } finally {
+      if (credential) {
+        credential.username = '';
+        credential.password = '';
+        credential = null;
+      }
+      username = '';
+      password = '';
       checking = false;
     }
   });

@@ -103,18 +103,25 @@ export function updateWinrm(
   winrmOk: boolean,
   osVersion: string | null,
   macAddress: string | null,
+  hostname: string | null = null,
 ): void {
   const existing = getAssetById(id);
   const nextOs = winrmOk
     ? (osVersion ?? existing?.osVersion ?? null)
     : (existing?.osVersion ?? null);
   const nextMac = macAddress ?? existing?.macAddress ?? null;
+  const storedHostname = existing?.hostname?.trim() || '';
+  const storedIsIp =
+    storedHostname.length > 0 &&
+    storedHostname.toLowerCase() === (existing?.ipv4.trim().toLowerCase() ?? '');
+  const existingHostname = !storedHostname || storedIsIp ? null : storedHostname;
+  const nextHostname = existingHostname ?? (hostname?.trim() || null);
   const now = new Date().toISOString();
   getDb()
     .prepare(
-      'UPDATE assets SET winrm_ok = ?, os_version = ?, mac_address = ?, updated_at = ? WHERE id = ?',
+      'UPDATE assets SET winrm_ok = ?, os_version = ?, mac_address = ?, hostname = ?, updated_at = ? WHERE id = ?',
     )
-    .run(winrmOk ? 1 : 0, nextOs, nextMac, now, id);
+    .run(winrmOk ? 1 : 0, nextOs, nextMac, nextHostname, now, id);
 }
 
 export function deleteAsset(id: number): boolean {

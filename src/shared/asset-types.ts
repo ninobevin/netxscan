@@ -76,4 +76,5 @@ export type WinrmProgress = {
   status: 'checking' | 'starting' | 'ok' | 'failed';
   osVersion?: string | null;
   macAddress?: string | null;
+  hostname?: string | null;
 };
